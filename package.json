@@ -1,0 +1,19 @@
+{
+  "name": "tuition-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Root dev orchestrator: runs backend + frontend together. NOT a pnpm workspace — each service stays standalone with its own deps/lockfile. concurrently is the only root dependency.",
+  "scripts": {
+    "dev": "concurrently -k -n backend,frontend -c blue,magenta \"pnpm -C backend dev\" \"pnpm -C frontend dev\"",
+    "build": "concurrently -k -n backend,frontend -c blue,magenta \"pnpm -C backend build\" \"pnpm -C frontend build\"",
+    "lint": "concurrently -k -n backend,frontend -c blue,magenta \"pnpm -C backend lint\" \"pnpm -C frontend lint\"",
+    "test": "concurrently -k -n backend,frontend -c blue,magenta \"pnpm -C backend test\" \"pnpm -C frontend test\"",
+    "install:all": "pnpm -C backend install && pnpm -C frontend install",
+    "up": "docker compose up",
+    "down": "docker compose down"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "packageManager": "pnpm@10.33.0"
+}

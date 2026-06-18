@@ -1,0 +1,122 @@
+name: tuition
+
+services:
+  # ── Postgres (primary) ─────────────────────────────────────────────────────
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tuition
+      POSTGRES_PASSWORD: tuition_password
+      POSTGRES_DB: tuitiondb
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5444:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tuition -d tuitiondb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Postgres (e2e test — ephemeral) ────────────────────────────────────────
+  db_test:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tuition
+      POSTGRES_PASSWORD: tuition_password
+      POSTGRES_DB: tuition_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    ports:
+      - "5435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tuition -d tuition_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── MinIO ──────────────────────────────────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── MinIO bootstrap (one-shot bucket creation) ─────────────────────────────
+  minio-bootstrap:
+    image: minio/mc:latest
+    restart: on-failure
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 minioadmin minioadmin;
+        mc mb --ignore-existing local/documents;
+        echo 'Bucket ready.';
+      "
+
+  # ── Backend (NestJS) ───────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://tuition:tuition_password@db:5432/tuitiondb
+      DATABASE_DIRECT_URL: postgresql://tuition:tuition_password@db:5432/tuitiondb
+      JWT_SECRET: change-me-to-a-long-random-secret
+      PORT: 3001
+      NODE_ENV: development
+      # S3/MinIO — server reaches MinIO on the compose network at minio:9000,
+      # but presigned download URLs must use a host the browser can resolve.
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_ENDPOINT: http://localhost:9000
+      S3_BUCKET: documents
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_FORCE_PATH_STYLE: "true"
+      CORS_ORIGINS: http://localhost:3000,http://localhost:3010
+    ports:
+      - "3001:3001"
+
+  # ── Frontend (Next.js) ─────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      # Browser-facing base URL (public)
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+      # Server-side BFF base URL (Next server → backend over the compose network)
+      BACKEND_URL: http://backend:3001
+      PORT: 3000
+      NODE_ENV: development
+    ports:
+      - "3010:3000"
+
+volumes:
+  db_data:
+  minio_data:

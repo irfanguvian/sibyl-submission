@@ -1,0 +1,21 @@
+{
+  "name": "Tuition Dev",
+  "dockerComposeFile": ["../docker-compose.yml"],
+  "service": "backend",
+  "workspaceFolder": "/workspace",
+  "mounts": ["source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"],
+  "customizations": {
+    "vscode": {
+      "extensions": ["biomejs.biome", "Prisma.prisma", "bradlc.vscode-tailwindcss"],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "biomejs.biome",
+        "[prisma]": {
+          "editor.defaultFormatter": "Prisma.prisma"
+        }
+      }
+    }
+  },
+  "postCreateCommand": "corepack enable && cd /workspace/backend && pnpm install && cd /workspace/frontend && pnpm install",
+  "remoteUser": "node"
+}

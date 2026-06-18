@@ -1,0 +1,136 @@
+// Prisma schema — learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_DIRECT_URL")
+}
+
+enum Role {
+  PARENT
+  TUTOR
+}
+
+enum CaseStatus {
+  OPEN
+  MATCHED
+  CLOSED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         Role
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  accessTokens      OauthAccessToken[]
+  ownedCases        Case[]             @relation("CaseOwner")
+  caseInvites       CaseInvite[]       @relation("InvitedTutor")
+  uploadedDocuments Document[]         @relation("DocumentUploader")
+  tutorProfile      TutorProfile?
+
+  @@map("user")
+}
+
+model TutorProfile {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  displayName    String
+  qualifications String[]
+  experiences    String[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents Document[]
+
+  @@index([displayName])
+  @@map("tutor_profile")
+}
+
+model Case {
+  id            String     @id @default(uuid())
+  title         String
+  subject       String
+  level         String
+  location      String
+  budgetPerHour Int
+  status        CaseStatus @default(OPEN)
+  ownerId       String
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  owner     User         @relation("CaseOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  invites   CaseInvite[]
+  documents Document[]
+
+  @@index([ownerId])
+  @@index([status])
+  @@map("case")
+}
+
+model Document {
+  id           String   @id @default(uuid())
+  originalName String
+  storedKey    String   @unique // opaque UUID key in object storage; never exposed
+  size         Int
+  mime         String
+  uploadedById   String
+  caseId         String?
+  tutorProfileId String?
+  createdAt      DateTime @default(now())
+
+  uploadedBy   User          @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
+  case         Case?         @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  tutorProfile TutorProfile? @relation(fields: [tutorProfileId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+  @@index([tutorProfileId])
+  @@map("document")
+}
+
+model CaseInvite {
+  id        String   @id @default(uuid())
+  caseId    String
+  tutorId   String
+  createdAt DateTime @default(now())
+
+  case  Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  tutor User @relation("InvitedTutor", fields: [tutorId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, tutorId])
+  @@index([tutorId])
+  @@map("case_invite")
+}
+
+model OauthAccessToken {
+  id           String             @id @default(uuid())
+  userId       String
+  tokenHash    String             @unique // sha256(jti)
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  createdAt    DateTime           @default(now())
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshToken OauthRefreshToken?
+
+  @@index([userId])
+  @@map("oauth_access_token")
+}
+
+model OauthRefreshToken {
+  id            String           @id @default(uuid())
+  accessTokenId String           @unique
+  tokenHash     String           @unique
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  createdAt     DateTime         @default(now())
+  accessToken   OauthAccessToken @relation(fields: [accessTokenId], references: [id], onDelete: Cascade)
+
+  @@map("oauth_refresh_token")
+}

@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+.next/
+.turbo/
+
+# Environment files (keep .env.example templates committable)
+.env
+.env.*
+!.env.example
+!**/.env.example
+*.local
+
+# Test coverage
+coverage/
+
+# Tooling scratch (not deliverables)
+.omc/
+graphify-out/
+progress.txt

@@ -1,0 +1,12 @@
+# Railway single-service config. Builds the combined image from the root
+# Dockerfile and serves the public Next.js port. Provision Postgres separately
+# and set the env vars documented in docs/railway-deploy.md.
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/"
+healthcheckTimeout = 120
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10

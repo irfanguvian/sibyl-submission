@@ -1,0 +1,17 @@
+# Root build context for the combined Dockerfile. Keep package.json,
+# pnpm-lock.yaml, prisma/, and source; drop anything rebuilt in-image.
+**/node_modules
+**/dist
+**/.next
+**/coverage
+**/.turbo
+.git
+.omc
+**/.env
+**/.env.*
+!**/.env.example
+docs
+scripts
+.devcontainer
+README.md
+docker-compose.yml
