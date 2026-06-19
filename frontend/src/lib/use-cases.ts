@@ -43,11 +43,31 @@ export function useUpdateCase(id: string) {
   });
 }
 
+export function useCaseInvites(id: string, enabled = true) {
+  return useQuery({
+    queryKey: ["case", id, "invites"],
+    queryFn: () => casesApi.listInvites(id),
+    enabled: !!id && enabled,
+  });
+}
+
+export function useRecommendations(id: string, enabled = true) {
+  return useQuery({
+    queryKey: ["case", id, "recommendations"],
+    queryFn: () => casesApi.recommendations(id),
+    enabled: !!id && enabled,
+  });
+}
+
 export function useInviteTutor(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (tutorId: string) => casesApi.invite(id, tutorId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["case", id] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["case", id] });
+      qc.invalidateQueries({ queryKey: ["case", id, "invites"] });
+      qc.invalidateQueries({ queryKey: ["case", id, "recommendations"] });
+    },
   });
 }
 
@@ -55,6 +75,30 @@ export function useRevokeInvite(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (tutorId: string) => casesApi.revokeInvite(id, tutorId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["case", id] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["case", id] });
+      qc.invalidateQueries({ queryKey: ["case", id, "invites"] });
+      qc.invalidateQueries({ queryKey: ["case", id, "recommendations"] });
+    },
+  });
+}
+
+export function useAcceptTutor(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (tutorId: string) => casesApi.accept(id, tutorId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["case", id] });
+      qc.invalidateQueries({ queryKey: ["case", id, "invites"] });
+      qc.invalidateQueries({ queryKey: ["cases"] });
+    },
+  });
+}
+
+export function useDeleteCaseDocument(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (documentId: string) => casesApi.deleteDocument(id, documentId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["case", id, "documents"] }),
   });
 }

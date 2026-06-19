@@ -223,6 +223,14 @@ model OauthRefreshToken {
 
 ---
 
+## Phase 9 — Feedback iteration
+
+See [`docs/feedback-plan.md`](./feedback-plan.md) for the full plan and scope decisions.
+
+**Summary:** Addressed user feedback collected after Phases 1–8. Kept the invite-only model (no tutor-apply), kept `open/matched/closed` status lifecycle, and kept balance out of scope. Added: public self-registration (`POST /auth/register`), parent accept-tutor action (`POST /cases/:id/accept` → `MATCHED` + `matchedTutorId`), AI-mock tutor recommendation (`GET /cases/:id/recommendations`, deterministic heuristic), document soft-delete (`Document.deletedAt`), `Case.description` brief field, `GET /cases/:id/invites` list endpoint, multi-file drag-drop upload, invite-by-name directory search, parent-cases-centric nav, and welcome/signup pages. Backend gate: 95 unit + 54 e2e green. Frontend gate: lint + 47 tests + build green. Seed expanded to 3 parents, 10 tutors, 12 cases, 14 invites, 9 documents (one soft-deleted).
+
+---
+
 ## Risks & Mitigations
 
 | Risk | Mitigation |

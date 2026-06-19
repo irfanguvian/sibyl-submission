@@ -1,5 +1,5 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { IsInt, IsString, MaxLength, Min, MinLength } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from "class-validator";
 
 export class CreateCaseDto {
   @ApiProperty({ example: "Maths tutor for GCSE" })
@@ -28,6 +28,12 @@ export class CreateCaseDto {
 
   @ApiProperty({ example: 40, description: "Budget per hour in whole currency units" })
   @IsInt()
-  @Min(0)
+  @Min(1)
   budgetPerHour!: number;
+
+  @ApiPropertyOptional({ example: "Needs help with algebra and exam technique." })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  description?: string;
 }

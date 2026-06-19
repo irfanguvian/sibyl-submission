@@ -60,7 +60,26 @@ export class DocumentsService {
 
   async listForCase(user: AuthenticatedUser, caseId: string): Promise<Document[]> {
     await this.caseAccess.getViewableCase(user, caseId);
-    return this.prisma.document.findMany({ where: { caseId }, orderBy: { createdAt: "desc" } });
+    return this.prisma.document.findMany({
+      where: { caseId, deletedAt: null },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  /** Soft-delete a case document. Only the uploader may delete it. */
+  async deleteForCase(user: AuthenticatedUser, caseId: string, documentId: string): Promise<void> {
+    await this.caseAccess.getViewableCase(user, caseId);
+    const doc = await this.prisma.document.findUnique({ where: { id: documentId } });
+    if (!doc || doc.caseId !== caseId || doc.deletedAt !== null) {
+      throw new NotFoundException("Document not found");
+    }
+    if (doc.uploadedById !== user.id) {
+      throw new ForbiddenException("Only the uploader may delete this document");
+    }
+    await this.prisma.document.update({
+      where: { id: documentId },
+      data: { deletedAt: new Date() },
+    });
   }
 
   /** Upload a document to the caller's own tutor profile. */
@@ -82,15 +101,15 @@ export class DocumentsService {
   async listForProfile(user: AuthenticatedUser, profileId: string): Promise<Document[]> {
     await this.assertCanViewProfile(user, profileId);
     return this.prisma.document.findMany({
-      where: { tutorProfileId: profileId },
+      where: { tutorProfileId: profileId, deletedAt: null },
       orderBy: { createdAt: "desc" },
     });
   }
 
-  /** Delete a document from the caller's own profile. */
+  /** Soft-delete a document from the caller's own profile. */
   async deleteOwnProfileDocument(user: AuthenticatedUser, documentId: string): Promise<void> {
     const doc = await this.prisma.document.findUnique({ where: { id: documentId } });
-    if (!doc?.tutorProfileId) {
+    if (!doc?.tutorProfileId || doc.deletedAt !== null) {
       throw new NotFoundException("Document not found");
     }
     const profile = await this.prisma.tutorProfile.findUnique({
@@ -99,13 +118,16 @@ export class DocumentsService {
     if (!profile || profile.userId !== user.id) {
       throw new ForbiddenException("You cannot delete this document");
     }
-    await this.prisma.document.delete({ where: { id: documentId } });
+    await this.prisma.document.update({
+      where: { id: documentId },
+      data: { deletedAt: new Date() },
+    });
   }
 
   /** Re-check authorization, then mint a short-lived presigned download URL. */
   async getDownloadUrl(user: AuthenticatedUser, documentId: string): Promise<string> {
     const doc = await this.prisma.document.findUnique({ where: { id: documentId } });
-    if (!doc) {
+    if (!doc || doc.deletedAt !== null) {
       throw new NotFoundException("Document not found");
     }
 

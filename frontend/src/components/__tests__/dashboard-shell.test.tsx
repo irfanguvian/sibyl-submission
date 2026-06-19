@@ -12,11 +12,16 @@ describe("DashboardShell", () => {
     expect(brands.length).toBeGreaterThan(0);
   });
 
-  it("renders nav links in the desktop sidebar", () => {
+  it("renders cases-centric nav links in the desktop sidebar", () => {
     render(<DashboardShell>content</DashboardShell>);
-    expect(screen.getByRole("link", { name: /dashboard/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /cases/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /tutors/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /profile/i })).toBeInTheDocument();
+  });
+
+  it("labels the cases link as Invitations for tutors", () => {
+    render(<DashboardShell userRole="TUTOR">content</DashboardShell>);
+    expect(screen.getByRole("link", { name: /invitations/i })).toBeInTheDocument();
   });
 
   it("renders children in main content area", () => {

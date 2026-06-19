@@ -34,3 +34,11 @@ export function useUpsertOwnProfile() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["tutor", "me"] }),
   });
 }
+
+export function useDeleteOwnDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (docId: string) => tutorsApi.deleteOwnDocument(docId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tutor", "me", "documents"] }),
+  });
+}

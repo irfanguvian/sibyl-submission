@@ -3,31 +3,21 @@
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import type { Role } from "@/lib/api-types";
-import {
-  BookOpen,
-  GraduationCap,
-  LayoutDashboard,
-  LogOut,
-  Menu,
-  UserRound,
-  Users,
-} from "lucide-react";
+import { BookOpen, GraduationCap, LogOut, Menu, UserRound, Users } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
-type NavItem = { href: string; label: string; icon: typeof LayoutDashboard };
-
-const BASE_NAV: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/cases", label: "Cases", icon: BookOpen },
-];
+type NavItem = { href: string; label: string; icon: typeof BookOpen };
 
 /**
- * Role-aware navigation: parents browse the tutor directory; tutors manage their
- * own profile. With no role (e.g. isolated tests) both links are shown.
+ * Role-aware navigation. The experience is cases-centric: parents lead with their
+ * cases and the tutor directory; tutors lead with their invitations and profile.
+ * With no role (e.g. isolated tests) all links are shown.
  */
 function navFor(role?: Role): NavItem[] {
-  const items = [...BASE_NAV];
+  const items: NavItem[] = [
+    { href: "/cases", label: role === "TUTOR" ? "Invitations" : "Cases", icon: BookOpen },
+  ];
   if (role !== "TUTOR") {
     items.push({ href: "/tutors", label: "Tutors", icon: Users });
   }

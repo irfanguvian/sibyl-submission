@@ -32,6 +32,7 @@ export function CaseForm({
       level: "",
       location: "",
       budgetPerHour: 0,
+      description: "",
       ...defaultValues,
     },
   });
@@ -76,6 +77,20 @@ export function CaseForm({
           )}
         </label>
       </div>
+
+      <label className="flex flex-col gap-1 text-sm">
+        Description (optional)
+        <textarea
+          rows={4}
+          maxLength={2000}
+          placeholder="What does your child need help with? Goals, schedule, anything tutors should know."
+          className={inputClass}
+          {...register("description")}
+        />
+        {errors.description && (
+          <span className="text-destructive text-xs">{errors.description.message}</span>
+        )}
+      </label>
 
       {error && (
         <p role="alert" className="text-destructive text-sm">

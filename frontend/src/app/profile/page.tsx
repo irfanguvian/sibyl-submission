@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { casesApi, tutorsApi, uploadDocument } from "@/lib/api";
 import { type ProfileFormValues, linesToArray, profileFormSchema } from "@/lib/schemas";
 import { useAuth } from "@/lib/use-auth";
-import { useOwnProfile, useUpsertOwnProfile } from "@/lib/use-tutors";
+import { useDeleteOwnDocument, useOwnProfile, useUpsertOwnProfile } from "@/lib/use-tutors";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -18,6 +18,7 @@ export default function ProfilePage() {
   const { user, isLoading: authLoading } = useAuth();
   const profile = useOwnProfile();
   const upsert = useUpsertOwnProfile();
+  const removeDoc = useDeleteOwnDocument();
   const qc = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [dropzoneKey, setDropzoneKey] = useState(0);
@@ -112,14 +113,27 @@ export default function ProfilePage() {
         {docs.data && docs.data.length > 0 && (
           <ul className="flex flex-col gap-2">
             {docs.data.map((d) => (
-              <li key={d.id} className="flex items-center justify-between rounded-md border p-3">
+              <li
+                key={d.id}
+                className="flex items-center justify-between gap-3 rounded-md border p-3"
+              >
                 <span className="text-sm">{d.originalName}</span>
-                <a
-                  className="text-primary text-sm underline-offset-4 hover:underline"
-                  href={casesApi.downloadUrl(d.id)}
-                >
-                  Download
-                </a>
+                <span className="flex items-center gap-3">
+                  <a
+                    className="text-primary text-sm underline-offset-4 hover:underline"
+                    href={casesApi.downloadUrl(d.id)}
+                  >
+                    Download
+                  </a>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={removeDoc.isPending}
+                    onClick={() => removeDoc.mutate(d.id)}
+                  >
+                    Delete
+                  </Button>
+                </span>
               </li>
             ))}
           </ul>
@@ -149,6 +163,11 @@ export default function ProfilePage() {
         {upload.isError && (
           <p role="alert" className="text-destructive text-sm">
             Upload failed — check the file type and size.
+          </p>
+        )}
+        {removeDoc.isError && (
+          <p role="alert" className="text-destructive text-sm">
+            Could not delete that document.
           </p>
         )}
       </section>

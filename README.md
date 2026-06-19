@@ -162,15 +162,54 @@ original filename (sanitized) lives in the DB; the storage key and filesystem pa
 
 ---
 
+## Signup
+
+Self-registration is available at `/signup` (frontend) or via the API directly:
+
+```bash
+POST /auth/register
+Content-Type: application/json
+
+{ "email": "alice@example.com", "password": "secret123", "role": "PARENT" }
+# TUTOR role also accepts "displayName": "Alice Tan"
+```
+
+- Duplicate email → **409**. Invalid role → **400**.
+- TUTOR role automatically bootstraps an empty `TutorProfile`.
+- Rate-limited (same limit as login: 5 req/min/IP).
+
+## AI Tutor Recommendation (mock)
+
+`GET /cases/:id/recommendations` returns a ranked list of suggested tutors for a case. This is a **deterministic mock** — it scores tutors by keyword overlap between the case subject/description and each tutor's qualifications. There is no external LLM call and no network dependency.
+
+The endpoint is labelled "mock" in Swagger. It satisfies the AI stretch goal in the requirement while keeping tests hermetic and the service free from API-key management.
+
+## Document Soft-Delete
+
+Documents (case docs and tutor profile docs) are **soft-deleted**: `DELETE` sets `Document.deletedAt` rather than removing the row. Soft-deleted documents:
+
+- Are excluded from all list responses.
+- Return **404** on download attempts.
+- Preserve the DB row for audit purposes (S3 object cleanup is a background job not implemented in this phase).
+
 ## TODO: Deployment URLs
 
 > **TODO:** Add staging and production URLs once deployed.
 
 ---
 
-## TODO: Demo Credentials
+## Demo Credentials
 
-> **TODO:** Add test account credentials for reviewers once seeded.
+Run `cd backend && pnpm db:seed` to wipe and reseed. All accounts use password `password123`.
+
+| Role | Email |
+|---|---|
+| Parent | `parent@example.com` |
+| Parent | `parent2@example.com` |
+| Parent | `parent3@example.com` |
+| Tutor | `tutor1@example.com` … `tutor10@example.com` |
+
+You can also register new accounts via the `/signup` page or `POST /auth/register` directly — see [Signup](#signup) below.
 
 ---
 

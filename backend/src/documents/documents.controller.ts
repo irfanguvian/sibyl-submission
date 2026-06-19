@@ -1,6 +1,9 @@
 import {
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
   Res,
@@ -13,6 +16,8 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiConsumes,
+  ApiForbiddenResponse,
+  ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -63,6 +68,20 @@ export class DocumentsController {
   ): Promise<DocumentResponseDto[]> {
     const docs = await this.documents.listForCase(user, caseId);
     return docs.map(DocumentResponseDto.from);
+  }
+
+  @Delete("cases/:caseId/documents/:id")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: "Soft-delete a case document (uploader only)" })
+  @ApiNoContentResponse({ description: "Document deleted" })
+  @ApiForbiddenResponse({ description: "Caller is not the uploader" })
+  @ApiNotFoundResponse({ description: "Document not found or not visible" })
+  async deleteForCase(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("caseId") caseId: string,
+    @Param("id") id: string,
+  ): Promise<void> {
+    await this.documents.deleteForCase(user, caseId, id);
   }
 
   @Get("documents/:id/download")

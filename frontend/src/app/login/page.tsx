@@ -3,8 +3,9 @@
 import { Button } from "@/components/ui/button";
 import type { LoginCredentials } from "@/lib/api-types";
 import { useAuth } from "@/lib/use-auth";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 
 // Seeded demo accounts (see backend/prisma/seed.ts). Only surfaced when
 // NEXT_PUBLIC_DEMO_MODE === "true" for manual testing in a deployed env.
@@ -15,7 +16,17 @@ const DEMO_ACCOUNTS: Record<"PARENT" | "TUTOR", LoginCredentials> = {
 };
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const justRegistered = searchParams.get("registered") === "1";
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,7 +36,7 @@ export default function LoginPage() {
   async function signIn(credentials: LoginCredentials) {
     try {
       await login.mutateAsync(credentials);
-      router.push("/");
+      router.push("/cases");
     } catch {
       // error surfaced via login.isError below
     }
@@ -42,6 +53,12 @@ export default function LoginPage() {
         <h1 className="font-semibold text-2xl">Sign in</h1>
         <p className="text-muted-foreground text-sm">Use your tuition marketplace account.</p>
       </div>
+
+      {justRegistered && (
+        <output className="rounded-md border border-green-600/40 bg-green-600/5 p-3 text-green-700 text-sm">
+          Account created — sign in to continue.
+        </output>
+      )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4" aria-label="Sign in">
         <label className="flex flex-col gap-1 text-sm">
@@ -107,6 +124,13 @@ export default function LoginPage() {
           </div>
         </div>
       )}
+
+      <p className="text-muted-foreground text-sm">
+        New here?{" "}
+        <Link href="/signup" className="text-primary underline-offset-4 hover:underline">
+          Create an account
+        </Link>
+      </p>
     </div>
   );
 }

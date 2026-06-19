@@ -7,9 +7,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 /** Routes that render without the dashboard shell or an auth requirement. */
-const PUBLIC_PREFIXES = ["/login"];
+const PUBLIC_PREFIXES = ["/login", "/signup"];
+/** Exact public routes (no prefix matching). */
+const PUBLIC_EXACT = ["/"];
 
 function isPublic(pathname: string): boolean {
+  if (PUBLIC_EXACT.includes(pathname)) {
+    return true;
+  }
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 

@@ -35,28 +35,43 @@ src/
   main.ts              # bootstrap: helmet, CORS allowlist, global ValidationPipe + AllExceptionsFilter, Swagger
   app.module.ts        # root module; global ThrottlerGuard (60s/100req), ConfigModule with env validation
   env.ts               # zod env schema + validateEnv() — single source of env truth
-  auth/                # login/refresh, JWT, guards (jwt-auth, roles), decorators (@CurrentUser, @Public, @Roles)
+  auth/                # login/refresh/logout/me + register (POST /auth/register — @Public(), rate-limited,
+                       #   bcrypt, duplicate email → 409, TUTOR bootstraps empty TutorProfile)
+                       #   JWT guards (jwt-auth, roles), decorators (@CurrentUser, @Public, @Roles)
   cases/               # case CRUD, invites, case-access authorization service
+                       #   + GET /cases/:id/invites (owner-only; returns [{tutorId, displayName, qualifications}])
+                       #   + POST /cases/:id/accept {tutorId} (owner-only; tutor must be invited → 400 else;
+                       #     second different tutor → 409; sets status=MATCHED + matchedTutorId; idempotent same-tutor)
+  recommendations/     # GET /cases/:id/recommendations (owner-only)
+                       #   RecommendationsService: deterministic heuristic keyword-overlap scoring;
+                       #   NO external LLM; labelled "mock" in Swagger + README
   tutor-profiles/      # tutor profile upsert + public directory
+                       #   profile-doc delete now soft (sets deletedAt); excluded from list/download
   documents/           # upload (multipart) + presigned download; mime allowlist (mime.ts)
+                       #   + DELETE /cases/:caseId/documents/:id (uploader-only soft-delete via deletedAt)
+                       #   soft-deleted docs excluded from list; download of deleted doc → 404
+                       #   DocumentResponseDto now includes uploadedById
   storage/             # S3/MinIO StorageService (presigned URLs)
   prisma/              # PrismaModule + PrismaService
   common/              # pagination helper, AllExceptionsFilter
   health/              # health check
 prisma/
   schema.prisma        # models: User, TutorProfile, Case, Document, CaseInvite, OauthAccessToken, OauthRefreshToken
-  migrations/          # SQL migrations
-  seed.ts              # dev seed data
+                       #   Phase 9 fields: Case.description (String?), Case.matchedTutorId (String? + relation),
+                       #   Document.deletedAt (DateTime?)
+  migrations/          # SQL migrations; latest: 20260619083652_feedback_iteration
+  seed.ts              # dev seed: 3 parents, 10 tutors (subject spread), 12 cases (all statuses, ≥2 MATCHED
+                       #   with matchedTutorId, one budgetPerHour=1), 14 invites, 9 docs (1 soft-deleted)
 test/                  # e2e specs + utils/e2e.ts harness
 ```
 
 ## Domain model (Prisma)
 
-- **User** — `role: PARENT | TUTOR`, `passwordHash`. Owns cases (PARENT), gets invited (TUTOR), uploads documents.
-- **TutorProfile** — 1:1 with a TUTOR user; `displayName`, `qualifications[]`, `experiences[]`.
-- **Case** — owned by a PARENT; `status: OPEN | MATCHED | CLOSED`, `budgetPerHour` (int).
+- **User** — `role: PARENT | TUTOR`, `passwordHash`. Owns cases (PARENT), gets invited (TUTOR), uploads documents. Created via login seed or `POST /auth/register`.
+- **TutorProfile** — 1:1 with a TUTOR user; `displayName`, `qualifications[]`, `experiences[]`. Auto-bootstrapped on register when role is TUTOR.
+- **Case** — owned by a PARENT; `status: OPEN | MATCHED | CLOSED`, `budgetPerHour` (int, min 1), optional `description` (String?), optional `matchedTutorId` (String?) pointing to the accepted tutor.
 - **CaseInvite** — links a Case to an invited tutor; unique on `(caseId, tutorId)`.
-- **Document** — `storedKey` is an opaque UUID in object storage, **never exposed**; attaches to a case or tutor profile.
+- **Document** — `storedKey` is an opaque UUID in object storage, **never exposed**; attaches to a case or tutor profile; `deletedAt` (DateTime?) for soft-delete — null means active.
 - **OauthAccessToken / OauthRefreshToken** — server-side token records; `tokenHash` = sha256(jti). Refresh rotates by revoking old + minting new.
 
 ## Auth model

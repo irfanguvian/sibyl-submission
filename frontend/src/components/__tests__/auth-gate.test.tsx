@@ -56,7 +56,7 @@ describe("AuthGate", () => {
   });
 
   it("renders the dashboard shell with children when authenticated", () => {
-    pathname = "/";
+    pathname = "/cases";
     authState.user = { id: "u1", email: "parent@example.com", role: "PARENT" };
     render(
       <AuthGate>
