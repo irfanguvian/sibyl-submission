@@ -10,8 +10,10 @@ const prisma = new PrismaClient();
  *   parent2@example.com / password123  (PARENT)
  *   tutor1@example.com … tutor6@example.com / password123  (TUTOR)
  *
- * The seed is idempotent — re-running upserts by natural keys and never
- * duplicates rows. It populates tutor profiles (the directory reads the
+ * The seed wipes all tables first, then inserts, so the DB always reflects
+ * exactly this file — re-running is safe and never duplicates rows (the
+ * upserts below are belt-and-suspenders after the wipe). It populates tutor
+ * profiles (the directory reads the
  * TutorProfile table, so without these a parent sees an empty directory),
  * cases across all statuses, an invite, and a few documents so the UI is not
  * empty for demos and manual testing.
@@ -213,7 +215,39 @@ function makeS3Client(): { client: S3Client; bucket: string } {
   };
 }
 
+/**
+ * Wipe every table before seeding so the DB always reflects exactly this seed
+ * file — no stale rows the seed no longer references. Deletes leaf -> root in
+ * FK-safe order inside a transaction (independent of the schema's cascade
+ * config). Guarded against production: refuses to run when NODE_ENV is
+ * "production" unless SEED_FORCE is set, so a mispointed DATABASE_URL can't
+ * silently destroy a real database.
+ */
+async function wipe(): Promise<void> {
+  if (process.env.NODE_ENV === "production" && !process.env.SEED_FORCE) {
+    console.error(
+      "Refusing to wipe: NODE_ENV=production and SEED_FORCE is not set. " +
+        "Set SEED_FORCE=1 to override (this DELETES ALL DATA).",
+    );
+    process.exit(1);
+  }
+
+  console.warn("wiping all data before seed (delete-then-insert)…");
+  await prisma.$transaction([
+    prisma.oauthRefreshToken.deleteMany(),
+    prisma.oauthAccessToken.deleteMany(),
+    prisma.document.deleteMany(),
+    prisma.caseInvite.deleteMany(),
+    prisma.case.deleteMany(),
+    prisma.tutorProfile.deleteMany(),
+    prisma.user.deleteMany(),
+  ]);
+  console.log("wiped all tables");
+}
+
 async function main(): Promise<void> {
+  await wipe();
+
   const passwordHash = await hash(DEMO_PASSWORD, 10);
 
   // Users
