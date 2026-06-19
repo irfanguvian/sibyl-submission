@@ -7,6 +7,7 @@ import { type E2EContext, PASSWORD, createE2EApp, resetDb, seedUsers } from "./u
 describe("Cases & ACL (e2e)", () => {
   let ctx: E2EContext;
   let tutor1Id: string;
+  let tutor2Id: string;
   let parentToken: string;
   let parent2Token: string;
   let tutor1Token: string;
@@ -29,7 +30,7 @@ describe("Cases & ACL (e2e)", () => {
   beforeAll(async () => {
     ctx = await createE2EApp();
     await resetDb(ctx.prisma);
-    ({ tutor1Id } = await seedUsers(ctx.prisma));
+    ({ tutor1Id, tutor2Id } = await seedUsers(ctx.prisma));
     await ctx.prisma.user.create({
       data: {
         email: "parent2@example.com",
@@ -133,6 +134,179 @@ describe("Cases & ACL (e2e)", () => {
       .set("Authorization", `Bearer ${parentToken}`)
       .send({ tutorId: randomUUID() })
       .expect(404);
+  });
+
+  it("create with budgetPerHour=0 → 400 (validation @Min(1))", async () => {
+    await http()
+      .post("/cases")
+      .set("Authorization", `Bearer ${parentToken}`)
+      .send(sampleCase({ budgetPerHour: 0 }))
+      .expect(400);
+  });
+
+  it("description round-trips on create and get", async () => {
+    const res = await http()
+      .post("/cases")
+      .set("Authorization", `Bearer ${parentToken}`)
+      .send(sampleCase({ description: "Needs algebra and exam technique" }))
+      .expect(201);
+    expect(res.body.description).toBe("Needs algebra and exam technique");
+    expect(res.body.matchedTutorId).toBeNull();
+
+    const got = await http()
+      .get(`/cases/${res.body.id}`)
+      .set("Authorization", `Bearer ${parentToken}`)
+      .expect(200);
+    expect(got.body.description).toBe("Needs algebra and exam technique");
+  });
+
+  describe("invites listing (owner only)", () => {
+    let caseId: string;
+    beforeAll(async () => {
+      caseId = await createCase(parentToken);
+      await http()
+        .post(`/cases/${caseId}/invites`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({ tutorId: tutor1Id })
+        .expect(201);
+    });
+
+    it("owner gets the invited tutor list → 200", async () => {
+      const res = await http()
+        .get(`/cases/${caseId}/invites`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .expect(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0]).toMatchObject({ tutorId: tutor1Id });
+      expect(res.body[0]).toHaveProperty("displayName");
+      expect(Array.isArray(res.body[0].qualifications)).toBe(true);
+    });
+
+    it("a different parent (cannot see the case) → 404", async () => {
+      await http()
+        .get(`/cases/${caseId}/invites`)
+        .set("Authorization", `Bearer ${parent2Token}`)
+        .expect(404);
+    });
+
+    it("an invited tutor (visible but not owner) → 403", async () => {
+      await http()
+        .get(`/cases/${caseId}/invites`)
+        .set("Authorization", `Bearer ${tutor1Token}`)
+        .expect(403);
+    });
+  });
+
+  describe("accept tutor", () => {
+    // POST /cases/:id/accept declares @HttpCode(HttpStatus.OK) → 200 on success
+    // (happy + idempotent), matching its @ApiOkResponse contract.
+    const ACCEPT_OK = 200;
+
+    it("accepting an uninvited (but real) tutor → 400", async () => {
+      const id = await createCase(parentToken);
+      await http()
+        .post(`/cases/${id}/accept`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({ tutorId: tutor1Id })
+        .expect(400);
+    });
+
+    it("accepting an invited tutor → 200 MATCHED + matchedTutorId; tutor keeps access", async () => {
+      const id = await createCase(parentToken);
+      await http()
+        .post(`/cases/${id}/invites`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({ tutorId: tutor1Id })
+        .expect(201);
+
+      const res = await http()
+        .post(`/cases/${id}/accept`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({ tutorId: tutor1Id })
+        .expect(ACCEPT_OK);
+      expect(res.body.status).toBe("MATCHED");
+      expect(res.body.matchedTutorId).toBe(tutor1Id);
+
+      // The matched tutor (still invited) retains view access.
+      await http().get(`/cases/${id}`).set("Authorization", `Bearer ${tutor1Token}`).expect(200);
+    });
+
+    it("re-accepting the same matched tutor is idempotent → 200", async () => {
+      const id = await createCase(parentToken);
+      await http()
+        .post(`/cases/${id}/invites`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({ tutorId: tutor1Id })
+        .expect(201);
+      await http()
+        .post(`/cases/${id}/accept`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({ tutorId: tutor1Id })
+        .expect(ACCEPT_OK);
+      const again = await http()
+        .post(`/cases/${id}/accept`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({ tutorId: tutor1Id })
+        .expect(ACCEPT_OK);
+      expect(again.body.matchedTutorId).toBe(tutor1Id);
+    });
+
+    it("accepting a second, different tutor after a match → 409", async () => {
+      const id = await createCase(parentToken);
+      await http()
+        .post(`/cases/${id}/invites`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({ tutorId: tutor1Id })
+        .expect(201);
+      await http()
+        .post(`/cases/${id}/invites`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({ tutorId: tutor2Id })
+        .expect(201);
+
+      await http()
+        .post(`/cases/${id}/accept`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({ tutorId: tutor1Id })
+        .expect(ACCEPT_OK);
+      await http()
+        .post(`/cases/${id}/accept`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({ tutorId: tutor2Id })
+        .expect(409);
+    });
+  });
+
+  describe("recommendations (owner only)", () => {
+    let id: string;
+    beforeAll(async () => {
+      id = await createCase(parentToken, { subject: "Math", title: "Algebra coaching" });
+    });
+
+    it("owner gets a ranked recommendation list → 200", async () => {
+      const res = await http()
+        .get(`/cases/${id}/recommendations`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .expect(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      // Seeded tutors have empty profiles → at most 5 entries, sorted by score desc.
+      expect(res.body.length).toBeLessThanOrEqual(5);
+      for (let i = 1; i < res.body.length; i++) {
+        expect(res.body[i - 1].score).toBeGreaterThanOrEqual(res.body[i].score);
+      }
+      if (res.body.length > 0) {
+        expect(res.body[0]).toHaveProperty("tutorId");
+        expect(res.body[0]).toHaveProperty("alreadyInvited");
+      }
+    });
+
+    it("a different parent (cannot see the case) → 404", async () => {
+      await http()
+        .get(`/cases/${id}/recommendations`)
+        .set("Authorization", `Bearer ${parent2Token}`)
+        .expect(404);
+    });
   });
 
   describe("list: pagination / search / filters", () => {

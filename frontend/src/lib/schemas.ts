@@ -6,10 +6,26 @@ export const caseFormSchema = z.object({
   subject: z.string().min(1, "Required").max(100),
   level: z.string().min(1, "Required").max(100),
   location: z.string().min(1, "Required").max(200),
-  budgetPerHour: z.coerce.number().int("Whole number").min(0, "Must be ≥ 0"),
+  budgetPerHour: z.coerce.number().int("Whole number").min(1, "Must be ≥ 1"),
+  description: z.string().max(2000, "At most 2000 characters").optional(),
 });
 
 export type CaseFormValues = z.infer<typeof caseFormSchema>;
+
+/** Signup form. Mirrors the backend RegisterDto; displayName is for tutors. */
+export const signupSchema = z
+  .object({
+    email: z.string().email("Enter a valid email"),
+    password: z.string().min(8, "At least 8 characters").max(128),
+    role: z.enum(["PARENT", "TUTOR"], { message: "Choose a role" }),
+    displayName: z.string().max(120).optional(),
+  })
+  .refine((v) => v.role !== "TUTOR" || (v.displayName?.trim().length ?? 0) >= 2, {
+    message: "At least 2 characters",
+    path: ["displayName"],
+  });
+
+export type SignupValues = z.infer<typeof signupSchema>;
 
 /**
  * Tutor profile form. Qualifications and experiences are entered as one item per

@@ -1,4 +1,4 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { CaseStatus } from "@prisma/client";
 
 export class CaseResponseDto {
@@ -20,11 +20,17 @@ export class CaseResponseDto {
   @ApiProperty()
   budgetPerHour!: number;
 
+  @ApiPropertyOptional({ nullable: true })
+  description!: string | null;
+
   @ApiProperty({ enum: CaseStatus })
   status!: CaseStatus;
 
   @ApiProperty()
   ownerId!: string;
+
+  @ApiPropertyOptional({ nullable: true, description: "Tutor matched to this case, if any" })
+  matchedTutorId!: string | null;
 
   @ApiProperty()
   createdAt!: Date;

@@ -1,6 +1,8 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from "@nestjs/common";
 import {
   ApiBearerAuth,
+  ApiConflictResponse,
+  ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -15,12 +17,24 @@ import { Public } from "./decorators/public.decorator";
 import { MeResponseDto, TokenResponseDto } from "./dto/auth-responses.dto";
 import { LoginDto } from "./dto/login.dto";
 import { RefreshDto } from "./dto/refresh.dto";
+import { RegisterDto, RegisterResponseDto } from "./dto/register.dto";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 
 @ApiTags("auth")
 @Controller("auth")
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Public()
+  @Post("register")
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: "Register a new user account" })
+  @ApiCreatedResponse({ type: RegisterResponseDto, description: "Account created" })
+  @ApiConflictResponse({ description: "Email already in use" })
+  @ApiTooManyRequestsResponse({ description: "Too many requests" })
+  register(@Body() dto: RegisterDto): Promise<RegisterResponseDto> {
+    return this.authService.register(dto.email, dto.password, dto.role, dto.displayName);
+  }
 
   @Public()
   @Post("login")

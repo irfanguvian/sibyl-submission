@@ -31,6 +31,7 @@ model User {
 
   accessTokens      OauthAccessToken[]
   ownedCases        Case[]             @relation("CaseOwner")
+  matchedCases      Case[]             @relation("CaseMatchedTutor")
   caseInvites       CaseInvite[]       @relation("InvitedTutor")
   uploadedDocuments Document[]         @relation("DocumentUploader")
   tutorProfile      TutorProfile?
@@ -55,23 +56,27 @@ model TutorProfile {
 }
 
 model Case {
-  id            String     @id @default(uuid())
-  title         String
-  subject       String
-  level         String
-  location      String
-  budgetPerHour Int
-  status        CaseStatus @default(OPEN)
-  ownerId       String
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id             String     @id @default(uuid())
+  title          String
+  subject        String
+  level          String
+  location       String
+  budgetPerHour  Int
+  description    String?
+  status         CaseStatus @default(OPEN)
+  ownerId        String
+  matchedTutorId String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
-  owner     User         @relation("CaseOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  invites   CaseInvite[]
-  documents Document[]
+  owner        User         @relation("CaseOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  matchedTutor User?        @relation("CaseMatchedTutor", fields: [matchedTutorId], references: [id], onDelete: SetNull)
+  invites      CaseInvite[]
+  documents    Document[]
 
   @@index([ownerId])
   @@index([status])
+  @@index([matchedTutorId])
   @@map("case")
 }
 
@@ -84,6 +89,7 @@ model Document {
   uploadedById   String
   caseId         String?
   tutorProfileId String?
+  deletedAt      DateTime?
   createdAt      DateTime @default(now())
 
   uploadedBy   User          @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: Cascade)

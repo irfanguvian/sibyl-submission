@@ -35,8 +35,14 @@ export class UpdateCaseDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsInt()
-  @Min(0)
+  @Min(1)
   budgetPerHour?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  description?: string;
 
   @ApiPropertyOptional({ enum: CaseStatus })
   @IsOptional()

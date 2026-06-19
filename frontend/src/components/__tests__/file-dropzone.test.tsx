@@ -70,4 +70,44 @@ describe("FileDropzone", () => {
     fireEvent.dragLeave(zone);
     expect(zone).toHaveAttribute("data-drag-over", "false");
   });
+
+  describe("multiple mode", () => {
+    it("reports all valid files via onFiles (picker)", () => {
+      const onFiles = vi.fn();
+      render(<FileDropzone multiple onFiles={onFiles} />);
+      const input = screen.getByLabelText("Upload document") as HTMLInputElement;
+      const a = makeFile("a.pdf", "application/pdf");
+      const b = makeFile("b.png", "image/png");
+
+      fireEvent.change(input, { target: { files: [a, b] } });
+
+      expect(onFiles).toHaveBeenCalledWith([a, b]);
+    });
+
+    it("reports valid files via drag-and-drop and surfaces an error for the bad one", () => {
+      const onFiles = vi.fn();
+      render(<FileDropzone multiple onFiles={onFiles} />);
+      const zone = screen.getByTestId("file-dropzone");
+      const good = makeFile("ok.pdf", "application/pdf");
+      const bad = makeFile("evil.exe", "application/octet-stream");
+
+      fireEvent.drop(zone, { dataTransfer: { files: [good, bad] } });
+
+      expect(onFiles).toHaveBeenCalledWith([good]);
+      expect(screen.getByRole("alert")).toHaveTextContent(/unsupported file type/i);
+    });
+
+    it("does not call onFiles when every file is invalid", () => {
+      const onFiles = vi.fn();
+      render(<FileDropzone multiple onFiles={onFiles} />);
+      const input = screen.getByLabelText("Upload document") as HTMLInputElement;
+
+      fireEvent.change(input, {
+        target: { files: [makeFile("evil.exe", "application/octet-stream")] },
+      });
+
+      expect(onFiles).not.toHaveBeenCalled();
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+  });
 });

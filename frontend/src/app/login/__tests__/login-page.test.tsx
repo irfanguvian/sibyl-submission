@@ -5,8 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import LoginPage from "../page";
 
 const pushMock = vi.fn();
+const searchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
+  useSearchParams: () => searchParams,
 }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -42,7 +44,7 @@ describe("LoginPage", () => {
     render(<LoginPage />, { wrapper });
     fillAndSubmit();
 
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/"));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/cases"));
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/auth/login",
       expect.objectContaining({ method: "POST" }),
@@ -82,7 +84,7 @@ describe("LoginPage", () => {
 
       fireEvent.click(parentBtn);
 
-      await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/"));
+      await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/cases"));
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/auth/login",
         expect.objectContaining({

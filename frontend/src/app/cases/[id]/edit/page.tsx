@@ -31,6 +31,7 @@ export default function EditCasePage() {
           level: caseItem.level,
           location: caseItem.location,
           budgetPerHour: caseItem.budgetPerHour,
+          description: caseItem.description ?? "",
         }}
         onSubmit={async (values) => {
           await update.mutateAsync(values);

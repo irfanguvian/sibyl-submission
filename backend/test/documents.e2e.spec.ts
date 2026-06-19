@@ -108,4 +108,126 @@ describe("Documents (e2e)", () => {
     expect(res.body.length).toBeGreaterThan(0);
     expect(res.body[0]).not.toHaveProperty("storedKey");
   });
+
+  describe("soft-delete", () => {
+    // Isolated case so list counts stay deterministic across the suite.
+    let isoCaseId: string;
+    beforeAll(async () => {
+      const created = await http()
+        .post("/cases")
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({
+          title: "Del case",
+          subject: "Math",
+          level: "GCSE",
+          location: "Hull",
+          budgetPerHour: 25,
+        })
+        .expect(201);
+      isoCaseId = created.body.id;
+      await http()
+        .post(`/cases/${isoCaseId}/invites`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({ tutorId: tutor1Id })
+        .expect(201);
+    });
+
+    const isoUpload = (token: string, name: string) =>
+      http()
+        .post(`/cases/${isoCaseId}/documents`)
+        .set("Authorization", `Bearer ${token}`)
+        .attach("file", PDF, { filename: name, contentType: "application/pdf" });
+
+    it("uploader soft-deletes → 204; doc vanishes from list and download 404s", async () => {
+      const up = await isoUpload(parentToken, "doomed.pdf").expect(201);
+      const docId = up.body.id;
+
+      await http()
+        .delete(`/cases/${isoCaseId}/documents/${docId}`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .expect(204);
+
+      const list = await http()
+        .get(`/cases/${isoCaseId}/documents`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .expect(200);
+      expect(list.body.map((d: { id: string }) => d.id)).not.toContain(docId);
+
+      await http()
+        .get(`/documents/${docId}/download`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .expect(404);
+    });
+
+    it("deleting again after soft-delete → 404 (idempotent absence)", async () => {
+      const up = await isoUpload(parentToken, "twice.pdf").expect(201);
+      const docId = up.body.id;
+      await http()
+        .delete(`/cases/${isoCaseId}/documents/${docId}`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .expect(204);
+      await http()
+        .delete(`/cases/${isoCaseId}/documents/${docId}`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .expect(404);
+    });
+
+    it("non-uploader (the invited tutor) cannot delete the parent's doc → 403", async () => {
+      const up = await isoUpload(parentToken, "owned.pdf").expect(201);
+      await http()
+        .delete(`/cases/${isoCaseId}/documents/${up.body.id}`)
+        .set("Authorization", `Bearer ${tutor1Token}`)
+        .expect(403);
+      // Still downloadable: the 403 did not delete it.
+      await http()
+        .get(`/documents/${up.body.id}/download`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .expect(302);
+    });
+
+    it("an uninvited tutor deleting → 404 (no existence leak)", async () => {
+      const up = await isoUpload(parentToken, "hidden.pdf").expect(201);
+      await http()
+        .delete(`/cases/${isoCaseId}/documents/${up.body.id}`)
+        .set("Authorization", `Bearer ${tutor2Token}`)
+        .expect(404);
+    });
+  });
+
+  describe("multi-upload", () => {
+    it("two uploads to one case are both listed", async () => {
+      const created = await http()
+        .post("/cases")
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({
+          title: "Multi",
+          subject: "Math",
+          level: "GCSE",
+          location: "York",
+          budgetPerHour: 20,
+        })
+        .expect(201);
+      const multiId = created.body.id;
+
+      const upA = await http()
+        .post(`/cases/${multiId}/documents`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .attach("file", PDF, { filename: "a.pdf", contentType: "application/pdf" })
+        .expect(201);
+      const upB = await http()
+        .post(`/cases/${multiId}/documents`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .attach("file", PDF, { filename: "b.pdf", contentType: "application/pdf" })
+        .expect(201);
+
+      const list = await http()
+        .get(`/cases/${multiId}/documents`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .expect(200);
+      const ids = list.body.map((d: { id: string }) => d.id);
+      expect(ids).toHaveLength(2);
+      expect(ids).toContain(upA.body.id);
+      expect(ids).toContain(upB.body.id);
+    });
+  });
 });

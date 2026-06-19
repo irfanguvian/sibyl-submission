@@ -18,6 +18,9 @@ export class DocumentResponseDto {
   @ApiProperty({ nullable: true })
   caseId!: string | null;
 
+  @ApiProperty({ description: "Id of the user who uploaded the document" })
+  uploadedById!: string;
+
   @ApiProperty()
   createdAt!: Date;
 
@@ -28,6 +31,7 @@ export class DocumentResponseDto {
       size: doc.size,
       mime: doc.mime,
       caseId: doc.caseId,
+      uploadedById: doc.uploadedById,
       createdAt: doc.createdAt,
     };
   }

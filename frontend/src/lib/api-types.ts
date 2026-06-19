@@ -44,10 +44,28 @@ export type Case = {
   level: string;
   location: string;
   budgetPerHour: number;
+  description?: string | null;
   status: CaseStatus;
   ownerId: string;
+  matchedTutorId?: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+/** A tutor currently invited to a case (GET /cases/:id/invites). */
+export type InvitedTutor = {
+  tutorId: string;
+  displayName: string;
+  qualifications: string[];
+};
+
+/** An AI-suggested (mock) tutor match (GET /cases/:id/recommendations). */
+export type Recommendation = {
+  tutorId: string;
+  displayName: string;
+  qualifications: string[];
+  score: number;
+  alreadyInvited: boolean;
 };
 
 export type TutorProfile = {
@@ -67,4 +85,7 @@ export type DocumentMeta = {
   mime: string;
   caseId: string | null;
   createdAt: string;
+  // Uploader identity is not currently exposed by the backend DocumentResponseDto.
+  // When present (future-proofing), the case document list groups by uploader role.
+  uploadedById?: string | null;
 };

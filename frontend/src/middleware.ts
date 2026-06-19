@@ -15,12 +15,22 @@ export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const hasSession = req.cookies.has(ACCESS_COOKIE) || req.cookies.has(REFRESH_COOKIE);
 
-  const isLoginRoute = pathname === "/login" || pathname.startsWith("/login/");
+  // Auth pages: signed-in users are bounced to their workspace.
+  const isAuthRoute =
+    pathname === "/login" ||
+    pathname.startsWith("/login/") ||
+    pathname === "/signup" ||
+    pathname.startsWith("/signup/");
 
-  if (isLoginRoute) {
+  if (isAuthRoute) {
     if (hasSession) {
-      return NextResponse.redirect(new URL("/", req.url));
+      return NextResponse.redirect(new URL("/cases", req.url));
     }
+    return NextResponse.next();
+  }
+
+  // The landing page is public; logged-in users are routed onward by the page itself.
+  if (pathname === "/") {
     return NextResponse.next();
   }
 

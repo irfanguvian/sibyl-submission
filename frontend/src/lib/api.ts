@@ -1,4 +1,12 @@
-import type { Case, CaseStatus, DocumentMeta, Paginated, TutorProfile } from "./api-types";
+import type {
+  Case,
+  CaseStatus,
+  DocumentMeta,
+  InvitedTutor,
+  Paginated,
+  Recommendation,
+  TutorProfile,
+} from "./api-types";
 
 // Everything goes through the authenticated BFF proxy, which attaches the bearer
 // token from the httpOnly cookie and silently refreshes on 401.
@@ -59,6 +67,7 @@ export type CaseInput = {
   level: string;
   location: string;
   budgetPerHour: number;
+  description?: string;
 };
 
 function toQuery(params: Record<string, string | number | undefined>): string {
@@ -82,7 +91,13 @@ export const casesApi = {
     api<{ caseId: string; tutorId: string }>(`/cases/${id}/invites`, jsonInit("POST", { tutorId })),
   revokeInvite: (id: string, tutorId: string) =>
     api<void>(`/cases/${id}/invites/${tutorId}`, { method: "DELETE" }),
+  listInvites: (id: string) => api<InvitedTutor[]>(`/cases/${id}/invites`),
+  accept: (id: string, tutorId: string) =>
+    api<Case>(`/cases/${id}/accept`, jsonInit("POST", { tutorId })),
+  recommendations: (id: string) => api<Recommendation[]>(`/cases/${id}/recommendations`),
   listDocuments: (id: string) => api<DocumentMeta[]>(`/cases/${id}/documents`),
+  deleteDocument: (caseId: string, documentId: string) =>
+    api<void>(`/cases/${caseId}/documents/${documentId}`, { method: "DELETE" }),
   downloadUrl: (documentId: string) => `${PROXY}/documents/${documentId}/download`,
 };
 
@@ -102,6 +117,8 @@ export const tutorsApi = {
   upsertOwn: (input: ProfileInput) =>
     api<TutorProfile>("/tutor-profiles/me", jsonInit("PUT", input)),
   listDocuments: (id: string) => api<DocumentMeta[]>(`/tutor-profiles/${id}/documents`),
+  deleteOwnDocument: (docId: string) =>
+    api<void>(`/tutor-profiles/me/documents/${docId}`, { method: "DELETE" }),
 };
 
 // ── Uploads (multipart) ──────────────────────────────────────────────────────

@@ -18,6 +18,53 @@ describe("Auth (e2e)", () => {
     await ctx.app.close();
   });
 
+  it("register a new parent → 201, then login succeeds → 200", async () => {
+    const reg = await http()
+      .post("/auth/register")
+      .send({ email: "newparent@example.com", password: "password123", role: "PARENT" })
+      .expect(201);
+    expect(reg.body).toMatchObject({ email: "newparent@example.com", role: "PARENT" });
+    expect(reg.body.id).toBeTypeOf("string");
+    expect(reg.body).not.toHaveProperty("passwordHash");
+
+    const login = await http()
+      .post("/auth/login")
+      .send({ email: "newparent@example.com", password: "password123" })
+      .expect(200);
+    expect(login.body.accessToken).toBeTypeOf("string");
+  });
+
+  it("registering a TUTOR bootstraps a usable profile and login works", async () => {
+    await http()
+      .post("/auth/register")
+      .send({ email: "newtutor@example.com", password: "password123", role: "TUTOR" })
+      .expect(201);
+
+    const { body } = await http()
+      .post("/auth/login")
+      .send({ email: "newtutor@example.com", password: "password123" })
+      .expect(200);
+    const me = await http()
+      .get("/auth/me")
+      .set("Authorization", `Bearer ${body.accessToken}`)
+      .expect(200);
+    expect(me.body.role).toBe("TUTOR");
+  });
+
+  it("registering a duplicate email → 409", async () => {
+    await http()
+      .post("/auth/register")
+      .send({ email: "parent@example.com", password: "password123", role: "PARENT" })
+      .expect(409);
+  });
+
+  it("registering with an invalid role → 400 (validation)", async () => {
+    await http()
+      .post("/auth/register")
+      .send({ email: "badrole@example.com", password: "password123", role: "WIZARD" })
+      .expect(400);
+  });
+
   it("login with valid credentials → 200 + token pair", async () => {
     const res = await http()
       .post("/auth/login")

@@ -1,7 +1,14 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AuthUser, LoginCredentials } from "./api-types";
+import type { AuthUser, LoginCredentials, Role } from "./api-types";
+
+export type RegisterInput = {
+  email: string;
+  password: string;
+  role: Role;
+  displayName?: string;
+};
 
 export const AUTH_ME_KEY = ["auth", "me"] as const;
 
@@ -49,11 +56,37 @@ export function useAuth() {
     onSuccess: () => queryClient.setQueryData(AUTH_ME_KEY, null),
   });
 
+  const register = useMutation({
+    mutationFn: async (input: RegisterInput) => {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        throw new RegisterError(res.status, body?.message ?? "Could not create the account");
+      }
+    },
+  });
+
   return {
     user: session.data ?? null,
     isLoading: session.isLoading,
     isError: session.isError,
     login,
     logout,
+    register,
   };
+}
+
+export class RegisterError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "RegisterError";
+  }
 }

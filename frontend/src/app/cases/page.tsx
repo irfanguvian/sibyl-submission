@@ -23,10 +23,17 @@ export default function CasesPage() {
     status: status || undefined,
   });
 
+  const isTutor = user?.role === "TUTOR";
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="font-semibold text-2xl">Cases</h1>
+        <div>
+          <h1 className="font-semibold text-2xl">{isTutor ? "My invitations" : "Cases"}</h1>
+          {isTutor && (
+            <p className="text-muted-foreground text-sm">Cases you have been invited to.</p>
+          )}
+        </div>
         {user?.role === "PARENT" && (
           <Button asChild>
             <Link href="/cases/new">New case</Link>
@@ -66,7 +73,14 @@ export default function CasesPage() {
       {isError && <ErrorState message="Could not load cases." onRetry={() => refetch()} />}
 
       {data && data.data.length === 0 && (
-        <EmptyState title="No cases found" hint="Try adjusting your search or filters." />
+        <EmptyState
+          title={isTutor ? "No invitations yet" : "No cases found"}
+          hint={
+            isTutor
+              ? "When a parent invites you to a case, it will appear here."
+              : "Try adjusting your search or filters."
+          }
+        />
       )}
 
       {data && data.data.length > 0 && (
