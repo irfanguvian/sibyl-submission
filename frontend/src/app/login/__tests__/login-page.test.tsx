@@ -58,4 +58,38 @@ describe("LoginPage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/invalid email or password/i);
     expect(pushMock).not.toHaveBeenCalled();
   });
+
+  describe("demo mode quick-login", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("hides quick-login buttons when demo mode is off", () => {
+      vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false");
+      render(<LoginPage />, { wrapper });
+      expect(screen.queryByRole("button", { name: /sign in as parent/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /sign in as tutor/i })).not.toBeInTheDocument();
+    });
+
+    it("shows quick-login buttons and submits demo creds when demo mode is on", async () => {
+      vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<LoginPage />, { wrapper });
+      const parentBtn = screen.getByRole("button", { name: /sign in as parent/i });
+      expect(screen.getByRole("button", { name: /sign in as tutor/i })).toBeInTheDocument();
+
+      fireEvent.click(parentBtn);
+
+      await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/"));
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/auth/login",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ email: "parent@example.com", password: "password123" }),
+        }),
+      );
+    });
+  });
 });

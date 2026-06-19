@@ -1,5 +1,6 @@
 "use client";
 
+import { FileDropzone } from "@/components/file-dropzone";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { casesApi, uploadDocument } from "@/lib/api";
@@ -8,7 +9,7 @@ import { useCase, useCaseDocuments, useInviteTutor, useRevokeInvite } from "@/li
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 export default function CaseDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -20,10 +21,11 @@ export default function CaseDetailPage() {
   const invite = useInviteTutor(id);
   const revoke = useRevokeInvite(id);
   const [tutorId, setTutorId] = useState("");
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [dropzoneKey, setDropzoneKey] = useState(0);
 
   const upload = useMutation({
-    mutationFn: (file: File) => uploadDocument(`/cases/${id}/documents`, file),
+    mutationFn: (f: File) => uploadDocument(`/cases/${id}/documents`, f),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["case", id, "documents"] }),
   });
 
@@ -81,15 +83,20 @@ export default function CaseDetailPage() {
           </ul>
         )}
 
-        <div className="flex items-center gap-3">
-          <input ref={fileRef} type="file" aria-label="Upload document" className="text-sm" />
+        <div className="flex flex-col gap-3">
+          <FileDropzone key={dropzoneKey} onFile={setFile} disabled={upload.isPending} />
           <Button
             size="sm"
-            disabled={upload.isPending}
+            className="self-start"
+            disabled={!file || upload.isPending}
             onClick={() => {
-              const file = fileRef.current?.files?.[0];
               if (file) {
-                upload.mutate(file);
+                upload.mutate(file, {
+                  onSuccess: () => {
+                    setFile(null);
+                    setDropzoneKey((k) => k + 1);
+                  },
+                });
               }
             }}
           >
@@ -121,6 +128,14 @@ export default function CaseDetailPage() {
             >
               Invite
             </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={!tutorId || revoke.isPending}
+              onClick={() => revoke.mutate(tutorId)}
+            >
+              Revoke
+            </Button>
           </div>
           {invite.isError && (
             <p role="alert" className="text-destructive text-sm">
@@ -128,15 +143,7 @@ export default function CaseDetailPage() {
             </p>
           )}
           <p className="text-muted-foreground text-xs">
-            Revoke access by id:{" "}
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={!tutorId || revoke.isPending}
-              onClick={() => revoke.mutate(tutorId)}
-            >
-              Revoke
-            </Button>
+            Enter a tutor id to invite or revoke their access to this case.
           </p>
         </section>
       )}

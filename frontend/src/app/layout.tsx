@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { DashboardShell } from "@/components/dashboard-shell";
+import { AuthGate } from "@/components/auth-gate";
 import { QueryProvider } from "@/providers/query-provider";
 
 export const metadata: Metadata = {
@@ -17,7 +17,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <QueryProvider>
-          <DashboardShell>{children}</DashboardShell>
+          <AuthGate>{children}</AuthGate>
         </QueryProvider>
       </body>
     </html>

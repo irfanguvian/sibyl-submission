@@ -1,5 +1,6 @@
 "use client";
 
+import { FileDropzone } from "@/components/file-dropzone";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { casesApi, tutorsApi, uploadDocument } from "@/lib/api";
@@ -8,7 +9,7 @@ import { useAuth } from "@/lib/use-auth";
 import { useOwnProfile, useUpsertOwnProfile } from "@/lib/use-tutors";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 
 const inputClass = "rounded-md border border-input bg-background px-3 py-2 text-sm";
@@ -18,7 +19,8 @@ export default function ProfilePage() {
   const profile = useOwnProfile();
   const upsert = useUpsertOwnProfile();
   const qc = useQueryClient();
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [dropzoneKey, setDropzoneKey] = useState(0);
 
   const profileId = profile.data?.id;
   const docs = useQuery({
@@ -123,15 +125,20 @@ export default function ProfilePage() {
           </ul>
         )}
         {profileId && (
-          <div className="flex items-center gap-3">
-            <input ref={fileRef} type="file" aria-label="Upload document" className="text-sm" />
+          <div className="flex flex-col gap-3">
+            <FileDropzone key={dropzoneKey} onFile={setFile} disabled={upload.isPending} />
             <Button
               size="sm"
-              disabled={upload.isPending}
+              className="self-start"
+              disabled={!file || upload.isPending}
               onClick={() => {
-                const file = fileRef.current?.files?.[0];
                 if (file) {
-                  upload.mutate(file);
+                  upload.mutate(file, {
+                    onSuccess: () => {
+                      setFile(null);
+                      setDropzoneKey((k) => k + 1);
+                    },
+                  });
                 }
               }}
             >
