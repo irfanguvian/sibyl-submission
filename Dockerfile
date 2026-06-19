@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl \
 RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 WORKDIR /app/backend
 COPY backend/package.json backend/pnpm-lock.yaml ./
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile
 COPY backend/ .
 RUN pnpm exec prisma generate
 RUN pnpm build
@@ -28,7 +28,7 @@ FROM node:22-slim AS frontend-build
 RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile
 COPY frontend/ .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
