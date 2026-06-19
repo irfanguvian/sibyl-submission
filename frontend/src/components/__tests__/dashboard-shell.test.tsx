@@ -1,7 +1,7 @@
 import { DashboardShell } from "@/components/dashboard-shell";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 // DashboardShell is a client component — safe to render in jsdom.
 describe("DashboardShell", () => {
@@ -40,5 +40,30 @@ describe("DashboardShell", () => {
     await user.click(trigger);
     // Sheet content has role="dialog" when open
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("shows the tutor directory link for parents, not the profile link", () => {
+    render(<DashboardShell userRole="PARENT">content</DashboardShell>);
+    expect(screen.getByRole("link", { name: /tutors/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /profile/i })).not.toBeInTheDocument();
+  });
+
+  it("shows the profile link for tutors, not the directory link", () => {
+    render(<DashboardShell userRole="TUTOR">content</DashboardShell>);
+    expect(screen.getByRole("link", { name: /profile/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /tutors/i })).not.toBeInTheDocument();
+  });
+
+  it("renders user email and calls onLogout when the log out button is clicked", async () => {
+    const user = userEvent.setup();
+    const onLogout = vi.fn();
+    render(
+      <DashboardShell userRole="PARENT" email="parent@example.com" onLogout={onLogout}>
+        content
+      </DashboardShell>,
+    );
+    expect(screen.getByText("parent@example.com")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /log out/i }));
+    expect(onLogout).toHaveBeenCalled();
   });
 });

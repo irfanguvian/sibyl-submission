@@ -1,9 +1,18 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import type { LoginCredentials } from "@/lib/api-types";
 import { useAuth } from "@/lib/use-auth";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+
+// Seeded demo accounts (see backend/prisma/seed.ts). Only surfaced when
+// NEXT_PUBLIC_DEMO_MODE === "true" for manual testing in a deployed env.
+const DEMO_PASSWORD = "password123";
+const DEMO_ACCOUNTS: Record<"PARENT" | "TUTOR", LoginCredentials> = {
+  PARENT: { email: "parent@example.com", password: DEMO_PASSWORD },
+  TUTOR: { email: "tutor1@example.com", password: DEMO_PASSWORD },
+};
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,14 +20,20 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
+  async function signIn(credentials: LoginCredentials) {
     try {
-      await login.mutateAsync({ email, password });
+      await login.mutateAsync(credentials);
       router.push("/");
     } catch {
       // error surfaced via login.isError below
     }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await signIn({ email, password });
   }
 
   return (
@@ -66,6 +81,32 @@ export default function LoginPage() {
           {login.isPending ? "Signing in…" : "Sign in"}
         </Button>
       </form>
+
+      {demoMode && (
+        <div className="flex flex-col gap-2 border-t pt-4">
+          <p className="text-muted-foreground text-xs">Demo mode — quick sign-in:</p>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              disabled={login.isPending}
+              onClick={() => signIn(DEMO_ACCOUNTS.PARENT)}
+            >
+              Sign in as Parent
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              disabled={login.isPending}
+              onClick={() => signIn(DEMO_ACCOUNTS.TUTOR)}
+            >
+              Sign in as Tutor
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

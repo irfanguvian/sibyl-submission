@@ -2,20 +2,45 @@
 
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { BookOpen, GraduationCap, LayoutDashboard, Menu, Users } from "lucide-react";
+import type { Role } from "@/lib/api-types";
+import {
+  BookOpen,
+  GraduationCap,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  UserRound,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
-const navItems = [
+type NavItem = { href: string; label: string; icon: typeof LayoutDashboard };
+
+const BASE_NAV: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/cases", label: "Cases", icon: BookOpen },
-  { href: "/tutors", label: "Tutors", icon: Users },
 ];
 
-function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
+/**
+ * Role-aware navigation: parents browse the tutor directory; tutors manage their
+ * own profile. With no role (e.g. isolated tests) both links are shown.
+ */
+function navFor(role?: Role): NavItem[] {
+  const items = [...BASE_NAV];
+  if (role !== "TUTOR") {
+    items.push({ href: "/tutors", label: "Tutors", icon: Users });
+  }
+  if (role === "TUTOR" || role === undefined) {
+    items.push({ href: "/profile", label: "Profile", icon: UserRound });
+  }
+  return items;
+}
+
+function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
   return (
     <nav className="flex flex-col gap-1">
-      {navItems.map(({ href, label, icon: Icon }) => (
+      {items.map(({ href, label, icon: Icon }) => (
         <Link
           key={href}
           href={href}
@@ -39,15 +64,44 @@ function SidebarBrand() {
   );
 }
 
-export function DashboardShell({ children }: { children: React.ReactNode }) {
+function UserFooter({ email, onLogout }: { email?: string; onLogout?: () => void }) {
+  if (!email && !onLogout) {
+    return null;
+  }
+  return (
+    <div className="mt-auto flex flex-col gap-2 border-t pt-4">
+      {email && <span className="truncate px-3 text-muted-foreground text-xs">{email}</span>}
+      {onLogout && (
+        <Button variant="ghost" size="sm" className="justify-start gap-3" onClick={onLogout}>
+          <LogOut className="h-4 w-4 shrink-0" />
+          Log out
+        </Button>
+      )}
+    </div>
+  );
+}
+
+export function DashboardShell({
+  children,
+  userRole,
+  email,
+  onLogout,
+}: {
+  children: React.ReactNode;
+  userRole?: Role;
+  email?: string;
+  onLogout?: () => void;
+}) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const items = navFor(userRole);
 
   return (
     <div className="flex min-h-screen">
       {/* Desktop sidebar — hidden below 768px */}
       <aside className="hidden md:flex md:w-64 md:flex-col border-r bg-background p-4 shrink-0">
         <SidebarBrand />
-        <NavLinks />
+        <NavLinks items={items} />
+        <UserFooter email={email} onLogout={onLogout} />
       </aside>
 
       <div className="flex flex-1 flex-col">
@@ -70,7 +124,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                   <SidebarBrand />
                 </SheetTitle>
               </SheetHeader>
-              <NavLinks onNavigate={() => setMobileOpen(false)} />
+              <div className="flex min-h-[60vh] flex-col">
+                <NavLinks items={items} onNavigate={() => setMobileOpen(false)} />
+                <UserFooter email={email} onLogout={onLogout} />
+              </div>
             </SheetContent>
           </Sheet>
           <span className="font-semibold text-sm">Tuition</span>
