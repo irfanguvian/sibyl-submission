@@ -8,7 +8,9 @@ import { PrismaService } from "../prisma/prisma.service";
  *
  * Visibility rules:
  *   - PARENT  → only cases they own.
- *   - TUTOR   → only cases they have been invited to.
+ *   - TUTOR   → invited OPEN cases, plus matched/closed cases only when they are
+ *              the picked tutor (matchedTutorId). Un-picked tutors lose visibility
+ *              once a case leaves OPEN.
  *
  * To avoid leaking the existence of cases a user may not see, anything not
  * visible returns **404**. Editing is owner-only: a visible-but-not-owner case
@@ -37,6 +39,10 @@ export class CaseAccessService {
       where: { caseId_tutorId: { caseId, tutorId: user.id } },
     });
     if (!invite) {
+      throw new NotFoundException("Case not found");
+    }
+    // Once a case is matched/closed, only the picked tutor may still see it.
+    if (found.status !== CaseStatus.OPEN && found.matchedTutorId !== user.id) {
       throw new NotFoundException("Case not found");
     }
     return found;

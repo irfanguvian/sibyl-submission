@@ -65,6 +65,29 @@ describe("CaseAccessService", () => {
         NotFoundException,
       );
     });
+
+    it("lets the matched tutor view a MATCHED case", async () => {
+      const c = { ...ownedCase, status: CaseStatus.MATCHED, matchedTutorId: "tutor-1" };
+      prisma.case.findUnique.mockResolvedValue(c);
+      prisma.caseInvite.findUnique.mockResolvedValue({ id: "inv-1" });
+      await expect(service.getViewableCase(tutor, "case-1")).resolves.toEqual(c);
+    });
+
+    it("404s for an invited-but-unpicked tutor once the case is matched", async () => {
+      const c = { ...ownedCase, status: CaseStatus.MATCHED, matchedTutorId: "tutor-1" };
+      prisma.case.findUnique.mockResolvedValue(c);
+      prisma.caseInvite.findUnique.mockResolvedValue({ id: "inv-2" });
+      await expect(service.getViewableCase(tutor2, "case-1")).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it("lets the matched tutor view a CLOSED case", async () => {
+      const c = { ...ownedCase, status: CaseStatus.CLOSED, matchedTutorId: "tutor-1" };
+      prisma.case.findUnique.mockResolvedValue(c);
+      prisma.caseInvite.findUnique.mockResolvedValue({ id: "inv-1" });
+      await expect(service.getViewableCase(tutor, "case-1")).resolves.toEqual(c);
+    });
   });
 
   describe("getEditableCase", () => {
@@ -111,13 +134,13 @@ describe("CaseAccessService", () => {
       await expect(service.getUploadableCase(tutor, "case-1")).resolves.toEqual(c);
     });
 
-    it("MATCHED + other invited tutor → 403", async () => {
+    it("MATCHED + other invited tutor → 404 (case no longer visible to them)", async () => {
       const c = { ...ownedCase, status: CaseStatus.MATCHED, matchedTutorId: "tutor-1" };
       prisma.case.findUnique.mockResolvedValue(c);
-      // tutor2 is invited but is not the matched tutor
+      // tutor2 is invited but is not the matched tutor — matched cases are hidden.
       prisma.caseInvite.findUnique.mockResolvedValue({ id: "inv-2" });
       await expect(service.getUploadableCase(tutor2, "case-1")).rejects.toBeInstanceOf(
-        ForbiddenException,
+        NotFoundException,
       );
     });
 
@@ -129,8 +152,17 @@ describe("CaseAccessService", () => {
       );
     });
 
-    it("CLOSED + invited tutor → 403", async () => {
+    it("CLOSED + invited-but-unpicked tutor → 404 (case no longer visible)", async () => {
       const c = { ...ownedCase, status: CaseStatus.CLOSED, matchedTutorId: null };
+      prisma.case.findUnique.mockResolvedValue(c);
+      prisma.caseInvite.findUnique.mockResolvedValue({ id: "inv-1" });
+      await expect(service.getUploadableCase(tutor, "case-1")).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it("CLOSED + matched tutor → 403 (closed cases accept no uploads)", async () => {
+      const c = { ...ownedCase, status: CaseStatus.CLOSED, matchedTutorId: "tutor-1" };
       prisma.case.findUnique.mockResolvedValue(c);
       prisma.caseInvite.findUnique.mockResolvedValue({ id: "inv-1" });
       await expect(service.getUploadableCase(tutor, "case-1")).rejects.toBeInstanceOf(

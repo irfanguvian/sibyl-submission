@@ -235,7 +235,7 @@ describe("Documents (e2e)", () => {
   describe("upload ACL — Phase 10 (US-003)", () => {
     // Each sub-test uses its own isolated case to avoid interference.
 
-    it("invited-but-not-matched tutor uploading to a MATCHED case → 403", async () => {
+    it("invited-but-not-matched tutor uploading to a MATCHED case → 404", async () => {
       // Create a case, invite both tutors, then accept tutor1 (MATCHED).
       const created = await http()
         .post("/cases")
@@ -269,12 +269,13 @@ describe("Documents (e2e)", () => {
         .send({ tutorId: tutor1Id })
         .expect(200);
 
-      // tutor2 is invited but NOT the matched tutor → 403.
+      // tutor2 is invited but NOT the matched tutor → the matched case is no longer
+      // visible to them, so the case appears not to exist → 404 (no existence leak).
       await http()
         .post(`/cases/${matchedCaseId}/documents`)
         .set("Authorization", `Bearer ${tutor2Token}`)
         .attach("file", PDF, { filename: "blocked.pdf", contentType: "application/pdf" })
-        .expect(403);
+        .expect(404);
 
       // Sanity: the matched tutor (tutor1) can still upload.
       await http()

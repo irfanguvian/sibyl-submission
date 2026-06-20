@@ -58,6 +58,7 @@ describe("CasesService", () => {
     await service.list(tutor, baseQuery({ q: "math", subject: "Maths", status: "OPEN" as never }));
     const where = prisma.case.findMany.mock.calls[0][0].where;
     expect(where.invites).toEqual({ some: { tutorId: "tutor-1" } });
+    expect(where.OR).toEqual([{ status: "OPEN" }, { matchedTutorId: "tutor-1" }]);
     expect(where.title).toEqual({ contains: "math", mode: "insensitive" });
     expect(where.subject).toBe("Maths");
     expect(where.status).toBe("OPEN");

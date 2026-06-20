@@ -43,7 +43,11 @@ export class CasesService {
     const where: Prisma.CaseWhereInput =
       user.role === Role.PARENT
         ? { ownerId: user.id }
-        : { invites: { some: { tutorId: user.id } } };
+        : {
+            invites: { some: { tutorId: user.id } },
+            // Tutors see OPEN invites; once matched/closed, only the picked tutor.
+            OR: [{ status: CaseStatus.OPEN }, { matchedTutorId: user.id }],
+          };
 
     if (query.q) {
       where.title = { contains: query.q, mode: "insensitive" };
