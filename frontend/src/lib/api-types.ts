@@ -85,7 +85,9 @@ export type DocumentMeta = {
   mime: string;
   caseId: string | null;
   createdAt: string;
-  // Uploader identity is not currently exposed by the backend DocumentResponseDto.
-  // When present (future-proofing), the case document list groups by uploader role.
+  // Uploader identity exposed by the backend DocumentResponseDto.
+  // `uploadedById` identifies the account; `uploaderName` is the display name
+  // (tutor profile display name, or the email fallback) used for the per-row tag.
   uploadedById?: string | null;
+  uploaderName?: string;
 };

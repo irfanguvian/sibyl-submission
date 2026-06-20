@@ -11,12 +11,15 @@ const inputClass = "rounded-md border border-input bg-background px-3 py-2 text-
 
 /**
  * Owner-only invite management for a case: search the tutor directory by name and
- * invite, then accept or revoke invited tutors. Once a case is MATCHED, further
- * accepts are disabled (one tutor per case).
+ * invite, then accept or revoke invited tutors. Once a case is MATCHED or CLOSED
+ * the workflow is locked: the search and invited list are hidden and only the
+ * matched tutor is shown read-only (one tutor per case).
  */
 export function InviteTutor({ caseItem }: { caseItem: Case }) {
   const caseId = caseItem.id;
-  const isMatched = caseItem.status === "MATCHED";
+  // Once matched or closed, the invite workflow is locked: no search, no
+  // directory results, no Accept/Revoke — only the matched tutor is shown.
+  const isLocked = caseItem.status === "MATCHED" || caseItem.status === "CLOSED";
 
   const [q, setQ] = useState("");
   const directory = useDirectory({ q: q.trim() ? q.trim() : undefined });
@@ -27,15 +30,41 @@ export function InviteTutor({ caseItem }: { caseItem: Case }) {
 
   const invitedIds = new Set((invites.data ?? []).map((t) => t.tutorId));
 
+  if (isLocked) {
+    const matchedTutor = (invites.data ?? []).find((t) => t.tutorId === caseItem.matchedTutorId);
+    return (
+      <section className="flex flex-col gap-4">
+        <h2 className="font-medium text-lg">Matched tutor</h2>
+        {invites.isLoading && <LoadingState rows={1} />}
+        {invites.isError && (
+          <ErrorState
+            message="Could not load the matched tutor."
+            onRetry={() => invites.refetch()}
+          />
+        )}
+        {!invites.isLoading && !invites.isError && !matchedTutor && (
+          <EmptyState title="No matched tutor" />
+        )}
+        {matchedTutor && (
+          <div
+            className="flex items-center justify-between gap-3 rounded-md border p-3"
+            aria-label="Matched tutor"
+          >
+            <span>
+              <span className="font-medium text-sm">{matchedTutor.displayName}</span>
+              <span className="block text-muted-foreground text-xs">
+                {matchedTutor.qualifications.slice(0, 2).join(", ") || "No qualifications listed"}
+              </span>
+            </span>
+          </div>
+        )}
+      </section>
+    );
+  }
+
   return (
     <section className="flex flex-col gap-4">
       <h2 className="font-medium text-lg">Invite a tutor</h2>
-
-      {isMatched && (
-        <p className="rounded-md border border-green-600/40 bg-green-600/5 p-3 text-green-700 text-sm">
-          This case is matched. A tutor has been accepted; no further accepts are allowed.
-        </p>
-      )}
 
       {/* Search the directory by name */}
       <div className="flex flex-col gap-2">
@@ -103,46 +132,36 @@ export function InviteTutor({ caseItem }: { caseItem: Case }) {
         )}
         {invites.data && invites.data.length > 0 && (
           <ul className="flex flex-col gap-2" aria-label="Invited tutors">
-            {invites.data.map((t) => {
-              const isMatchedTutor = isMatched && caseItem.matchedTutorId === t.tutorId;
-              return (
-                <li
-                  key={t.tutorId}
-                  className="flex items-center justify-between gap-3 rounded-md border p-3"
-                >
-                  <span>
-                    <span className="font-medium text-sm">
-                      {t.displayName}
-                      {isMatchedTutor && (
-                        <span className="ml-2 rounded-full bg-green-600/10 px-2 py-0.5 text-green-700 text-xs">
-                          Matched
-                        </span>
-                      )}
-                    </span>
-                    <span className="block text-muted-foreground text-xs">
-                      {t.qualifications.slice(0, 2).join(", ") || "No qualifications listed"}
-                    </span>
+            {invites.data.map((t) => (
+              <li
+                key={t.tutorId}
+                className="flex items-center justify-between gap-3 rounded-md border p-3"
+              >
+                <span>
+                  <span className="font-medium text-sm">{t.displayName}</span>
+                  <span className="block text-muted-foreground text-xs">
+                    {t.qualifications.slice(0, 2).join(", ") || "No qualifications listed"}
                   </span>
-                  <span className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      disabled={isMatched || accept.isPending}
-                      onClick={() => accept.mutate(t.tutorId)}
-                    >
-                      Accept
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      disabled={isMatched || revoke.isPending}
-                      onClick={() => revoke.mutate(t.tutorId)}
-                    >
-                      Revoke
-                    </Button>
-                  </span>
-                </li>
-              );
-            })}
+                </span>
+                <span className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    disabled={accept.isPending}
+                    onClick={() => accept.mutate(t.tutorId)}
+                  >
+                    Accept
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={revoke.isPending}
+                    onClick={() => revoke.mutate(t.tutorId)}
+                  >
+                    Revoke
+                  </Button>
+                </span>
+              </li>
+            ))}
           </ul>
         )}
         {accept.isError && (

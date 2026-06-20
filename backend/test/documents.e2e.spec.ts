@@ -8,6 +8,7 @@ const PDF = Buffer.from("%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF");
 describe("Documents (e2e)", () => {
   let ctx: E2EContext;
   let tutor1Id: string;
+  let tutor2Id: string;
   let parentToken: string;
   let tutor1Token: string;
   let tutor2Token: string;
@@ -22,7 +23,7 @@ describe("Documents (e2e)", () => {
   beforeAll(async () => {
     ctx = await createE2EApp();
     await resetDb(ctx.prisma);
-    ({ tutor1Id } = await seedUsers(ctx.prisma));
+    ({ tutor1Id, tutor2Id } = await seedUsers(ctx.prisma));
     [parentToken, tutor1Token, tutor2Token] = await Promise.all([
       login("parent@example.com"),
       login("tutor1@example.com"),
@@ -228,6 +229,104 @@ describe("Documents (e2e)", () => {
       expect(ids).toHaveLength(2);
       expect(ids).toContain(upA.body.id);
       expect(ids).toContain(upB.body.id);
+    });
+  });
+
+  describe("upload ACL — Phase 10 (US-003)", () => {
+    // Each sub-test uses its own isolated case to avoid interference.
+
+    it("invited-but-not-matched tutor uploading to a MATCHED case → 403", async () => {
+      // Create a case, invite both tutors, then accept tutor1 (MATCHED).
+      const created = await http()
+        .post("/cases")
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({
+          title: "Matched case",
+          subject: "Physics",
+          level: "A-Level",
+          location: "Bath",
+          budgetPerHour: 40,
+        })
+        .expect(201);
+      const matchedCaseId = created.body.id;
+
+      // Invite both tutors.
+      await http()
+        .post(`/cases/${matchedCaseId}/invites`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({ tutorId: tutor1Id })
+        .expect(201);
+      await http()
+        .post(`/cases/${matchedCaseId}/invites`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({ tutorId: tutor2Id })
+        .expect(201);
+
+      // Accept tutor1 → case becomes MATCHED with matchedTutorId = tutor1Id.
+      await http()
+        .post(`/cases/${matchedCaseId}/accept`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({ tutorId: tutor1Id })
+        .expect(200);
+
+      // tutor2 is invited but NOT the matched tutor → 403.
+      await http()
+        .post(`/cases/${matchedCaseId}/documents`)
+        .set("Authorization", `Bearer ${tutor2Token}`)
+        .attach("file", PDF, { filename: "blocked.pdf", contentType: "application/pdf" })
+        .expect(403);
+
+      // Sanity: the matched tutor (tutor1) can still upload.
+      await http()
+        .post(`/cases/${matchedCaseId}/documents`)
+        .set("Authorization", `Bearer ${tutor1Token}`)
+        .attach("file", PDF, { filename: "allowed.pdf", contentType: "application/pdf" })
+        .expect(201);
+    });
+
+    it("any upload to a CLOSED case → 403 (even the owner)", async () => {
+      const created = await http()
+        .post("/cases")
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({
+          title: "Closed case",
+          subject: "Chemistry",
+          level: "GCSE",
+          location: "Exeter",
+          budgetPerHour: 25,
+        })
+        .expect(201);
+      const closedCaseId = created.body.id;
+
+      // Close the case via PATCH.
+      await http()
+        .patch(`/cases/${closedCaseId}`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({ status: "CLOSED" })
+        .expect(200);
+
+      // Owner attempt → 403.
+      await http()
+        .post(`/cases/${closedCaseId}/documents`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .attach("file", PDF, { filename: "nope.pdf", contentType: "application/pdf" })
+        .expect(403);
+    });
+
+    it("GET /cases/:caseId/documents response objects include uploaderName", async () => {
+      // Use the main caseId (parent uploaded at least one doc in the outer beforeAll).
+      const res = await http()
+        .get(`/cases/${caseId}/documents`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .expect(200);
+
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.length).toBeGreaterThan(0);
+      for (const doc of res.body) {
+        expect(doc).toHaveProperty("uploaderName");
+        expect(typeof doc.uploaderName).toBe("string");
+        expect(doc.uploaderName.length).toBeGreaterThan(0);
+      }
     });
   });
 });

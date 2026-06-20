@@ -63,10 +63,11 @@ export function useInviteTutor(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (tutorId: string) => casesApi.invite(id, tutorId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["case", id] });
-      qc.invalidateQueries({ queryKey: ["case", id, "invites"] });
-      qc.invalidateQueries({ queryKey: ["case", id, "recommendations"] });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["case", id] });
+      await qc.invalidateQueries({ queryKey: ["case", id, "invites"] });
+      await qc.invalidateQueries({ queryKey: ["case", id, "recommendations"] });
+      await qc.refetchQueries({ queryKey: ["case", id, "invites"] });
     },
   });
 }
@@ -75,10 +76,11 @@ export function useRevokeInvite(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (tutorId: string) => casesApi.revokeInvite(id, tutorId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["case", id] });
-      qc.invalidateQueries({ queryKey: ["case", id, "invites"] });
-      qc.invalidateQueries({ queryKey: ["case", id, "recommendations"] });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["case", id] });
+      await qc.invalidateQueries({ queryKey: ["case", id, "invites"] });
+      await qc.invalidateQueries({ queryKey: ["case", id, "recommendations"] });
+      await qc.refetchQueries({ queryKey: ["case", id, "invites"] });
     },
   });
 }
@@ -87,10 +89,12 @@ export function useAcceptTutor(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (tutorId: string) => casesApi.accept(id, tutorId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["case", id] });
-      qc.invalidateQueries({ queryKey: ["case", id, "invites"] });
-      qc.invalidateQueries({ queryKey: ["cases"] });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["case", id] });
+      await qc.invalidateQueries({ queryKey: ["case", id, "invites"] });
+      await qc.invalidateQueries({ queryKey: ["case", id, "recommendations"] });
+      await qc.invalidateQueries({ queryKey: ["cases"] });
+      await qc.refetchQueries({ queryKey: ["case", id, "invites"] });
     },
   });
 }

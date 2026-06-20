@@ -1,5 +1,5 @@
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
-import { Role } from "@prisma/client";
+import { CaseStatus, Role } from "@prisma/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthenticatedUser } from "../auth/auth.types";
 import { CaseAccessService } from "./case-access.service";
@@ -7,6 +7,7 @@ import { CaseAccessService } from "./case-access.service";
 const parent: AuthenticatedUser = { id: "parent-1", role: Role.PARENT, jti: "j" };
 const otherParent: AuthenticatedUser = { id: "parent-2", role: Role.PARENT, jti: "j" };
 const tutor: AuthenticatedUser = { id: "tutor-1", role: Role.TUTOR, jti: "j" };
+const tutor2: AuthenticatedUser = { id: "tutor-2", role: Role.TUTOR, jti: "j" };
 
 function makePrisma() {
   return {
@@ -15,7 +16,12 @@ function makePrisma() {
   };
 }
 
-const ownedCase = { id: "case-1", ownerId: "parent-1" };
+const ownedCase = {
+  id: "case-1",
+  ownerId: "parent-1",
+  status: CaseStatus.OPEN,
+  matchedTutorId: null,
+};
 
 describe("CaseAccessService", () => {
   let prisma: ReturnType<typeof makePrisma>;
@@ -79,6 +85,64 @@ describe("CaseAccessService", () => {
       prisma.case.findUnique.mockResolvedValue(ownedCase);
       prisma.caseInvite.findUnique.mockResolvedValue(null);
       await expect(service.getEditableCase(tutor, "case-1")).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe("getUploadableCase", () => {
+    it("OPEN + parent owner → allowed", async () => {
+      const c = { ...ownedCase, status: CaseStatus.OPEN, matchedTutorId: null };
+      prisma.case.findUnique.mockResolvedValue(c);
+      await expect(service.getUploadableCase(parent, "case-1")).resolves.toEqual(c);
+    });
+
+    it("OPEN + invited tutor → allowed", async () => {
+      const c = { ...ownedCase, status: CaseStatus.OPEN, matchedTutorId: null };
+      prisma.case.findUnique.mockResolvedValue(c);
+      prisma.caseInvite.findUnique.mockResolvedValue({ id: "inv-1" });
+      await expect(service.getUploadableCase(tutor, "case-1")).resolves.toEqual(c);
+    });
+
+    it("MATCHED + matched tutor → allowed", async () => {
+      const c = { ...ownedCase, status: CaseStatus.MATCHED, matchedTutorId: "tutor-1" };
+      prisma.case.findUnique.mockResolvedValue(c);
+      prisma.caseInvite.findUnique.mockResolvedValue({ id: "inv-1" });
+      await expect(service.getUploadableCase(tutor, "case-1")).resolves.toEqual(c);
+    });
+
+    it("MATCHED + other invited tutor → 403", async () => {
+      const c = { ...ownedCase, status: CaseStatus.MATCHED, matchedTutorId: "tutor-1" };
+      prisma.case.findUnique.mockResolvedValue(c);
+      // tutor2 is invited but is not the matched tutor
+      prisma.caseInvite.findUnique.mockResolvedValue({ id: "inv-2" });
+      await expect(service.getUploadableCase(tutor2, "case-1")).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+
+    it("CLOSED + owner → 403 (closed cases accept no uploads)", async () => {
+      const c = { ...ownedCase, status: CaseStatus.CLOSED, matchedTutorId: null };
+      prisma.case.findUnique.mockResolvedValue(c);
+      await expect(service.getUploadableCase(parent, "case-1")).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+
+    it("CLOSED + invited tutor → 403", async () => {
+      const c = { ...ownedCase, status: CaseStatus.CLOSED, matchedTutorId: null };
+      prisma.case.findUnique.mockResolvedValue(c);
+      prisma.caseInvite.findUnique.mockResolvedValue({ id: "inv-1" });
+      await expect(service.getUploadableCase(tutor, "case-1")).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+
+    it("non-viewer (uninvited tutor) → 404 (existence not leaked)", async () => {
+      const c = { ...ownedCase, status: CaseStatus.OPEN, matchedTutorId: null };
+      prisma.case.findUnique.mockResolvedValue(c);
+      prisma.caseInvite.findUnique.mockResolvedValue(null);
+      await expect(service.getUploadableCase(tutor, "case-1")).rejects.toBeInstanceOf(
         NotFoundException,
       );
     });

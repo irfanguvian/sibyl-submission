@@ -8,13 +8,18 @@ import {
   UnsupportedMediaTypeException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { type Document, Role } from "@prisma/client";
+import { type Document, type Prisma, Role } from "@prisma/client";
 import type { AuthenticatedUser } from "../auth/auth.types";
 import { CaseAccessService } from "../cases/case-access.service";
 import type { Env } from "../env";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
 import { type AllowedMime, detectAllowedMime, safeFilename } from "./mime";
+
+/** A case document joined with its uploader (and their tutor profile) for name display. */
+export type DocumentWithUploader = Prisma.DocumentGetPayload<{
+  include: { uploadedBy: { include: { tutorProfile: true } } };
+}>;
 
 @Injectable()
 export class DocumentsService {
@@ -51,18 +56,19 @@ export class DocumentsService {
     caseId: string,
     file: Express.Multer.File | undefined,
   ): Promise<Document> {
-    await this.caseAccess.getViewableCase(user, caseId);
+    await this.caseAccess.getUploadableCase(user, caseId);
     const stored = await this.validateAndStore(file);
     return this.prisma.document.create({
       data: { ...stored, uploadedById: user.id, caseId },
     });
   }
 
-  async listForCase(user: AuthenticatedUser, caseId: string): Promise<Document[]> {
+  async listForCase(user: AuthenticatedUser, caseId: string): Promise<DocumentWithUploader[]> {
     await this.caseAccess.getViewableCase(user, caseId);
     return this.prisma.document.findMany({
       where: { caseId, deletedAt: null },
       orderBy: { createdAt: "desc" },
+      include: { uploadedBy: { include: { tutorProfile: true } } },
     });
   }
 

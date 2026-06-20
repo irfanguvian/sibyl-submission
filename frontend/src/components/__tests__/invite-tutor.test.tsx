@@ -70,7 +70,7 @@ describe("InviteTutor", () => {
     await waitFor(() => expect(invite).toHaveBeenCalledWith("c1", "t1"));
   });
 
-  it("renders the invited tutors list with Accept and Revoke", async () => {
+  it("renders the invited tutors list with Accept and Revoke when OPEN", async () => {
     listInvites.mockResolvedValue([
       { tutorId: "t1", displayName: "Ada Lovelace", qualifications: ["BSc"] },
     ]);
@@ -83,7 +83,7 @@ describe("InviteTutor", () => {
     expect(screen.getByRole("button", { name: /revoke/i })).toBeEnabled();
   });
 
-  it("disables Accept/Revoke and shows a matched badge when the case is MATCHED", async () => {
+  it("shows read-only matched tutor section when status is MATCHED — no search input, no Accept/Revoke", async () => {
     listInvites.mockResolvedValue([
       { tutorId: "t1", displayName: "Ada Lovelace", qualifications: ["BSc"] },
     ]);
@@ -92,9 +92,56 @@ describe("InviteTutor", () => {
       wrapper,
     });
 
+    // Heading shows "Matched tutor", not "Invite a tutor"
+    expect(await screen.findByText("Matched tutor")).toBeInTheDocument();
+
+    // Matched tutor name is visible (wait for invites query to resolve)
+    expect(await screen.findByText("Ada Lovelace")).toBeInTheDocument();
+
+    // No search input
+    expect(screen.queryByLabelText("Search tutors by name")).not.toBeInTheDocument();
+
+    // No Accept or Revoke buttons
+    expect(screen.queryByRole("button", { name: /accept/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /revoke/i })).not.toBeInTheDocument();
+  });
+
+  it("shows read-only matched tutor section when status is CLOSED", async () => {
+    listInvites.mockResolvedValue([
+      { tutorId: "t1", displayName: "Ada Lovelace", qualifications: ["BSc"] },
+    ]);
+
+    render(<InviteTutor caseItem={{ ...baseCase, status: "CLOSED", matchedTutorId: "t1" }} />, {
+      wrapper,
+    });
+
+    expect(await screen.findByText("Matched tutor")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Search tutors by name")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /accept/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /revoke/i })).not.toBeInTheDocument();
+  });
+
+  it("revoke causes invites to refetch and the row disappears", async () => {
+    // First call returns the invited tutor; second call (after revoke) returns empty
+    listInvites
+      .mockResolvedValueOnce([
+        { tutorId: "t1", displayName: "Ada Lovelace", qualifications: ["BSc"] },
+      ])
+      .mockResolvedValueOnce([]);
+    revokeInvite.mockResolvedValue(undefined);
+
+    render(<InviteTutor caseItem={baseCase} />, { wrapper });
+
+    // Tutor row is visible
     const list = await screen.findByLabelText("Invited tutors");
-    expect(list).toHaveTextContent("Matched");
-    expect(screen.getByRole("button", { name: /accept/i })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /revoke/i })).toBeDisabled();
+    expect(list).toHaveTextContent("Ada Lovelace");
+
+    // Click Revoke
+    fireEvent.click(screen.getByRole("button", { name: /revoke/i }));
+
+    await waitFor(() => expect(revokeInvite).toHaveBeenCalledWith("c1", "t1"));
+
+    // After refetch the row should be gone
+    await waitFor(() => expect(screen.queryByText("Ada Lovelace")).not.toBeInTheDocument());
   });
 });

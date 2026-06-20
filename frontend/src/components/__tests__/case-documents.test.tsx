@@ -45,6 +45,7 @@ const docs: DocumentMeta[] = [
     caseId: "c1",
     createdAt: "",
     uploadedById: "t1",
+    uploaderName: "Ada Lovelace",
   },
 ];
 
@@ -60,29 +61,51 @@ describe("CaseDocuments", () => {
   });
   afterEach(() => vi.clearAllMocks());
 
-  it("groups documents by uploader when uploader ids are present", () => {
+  it("renders all documents in a flat list", () => {
     render(<CaseDocuments caseId="c1" ownerId="p1" documents={query()} canUpload={false} />, {
       wrapper,
     });
-    expect(screen.getByText(/uploaded by parent/i)).toBeInTheDocument();
-    expect(screen.getByText(/uploaded by tutor/i)).toBeInTheDocument();
     expect(screen.getByText("parent-brief.pdf")).toBeInTheDocument();
     expect(screen.getByText("tutor-cv.pdf")).toBeInTheDocument();
   });
 
-  it("falls back to a single group when no uploader info is available", () => {
-    const noUploader = docs.map((d) => ({ ...d, uploadedById: undefined }));
+  it("tags a parent-uploaded doc with 'by Parent'", () => {
+    render(<CaseDocuments caseId="c1" ownerId="p1" documents={query()} canUpload={false} />, {
+      wrapper,
+    });
+    expect(screen.getByText("by Parent")).toBeInTheDocument();
+  });
+
+  it("tags a tutor-uploaded doc with 'by ' + uploaderName", () => {
+    render(<CaseDocuments caseId="c1" ownerId="p1" documents={query()} canUpload={false} />, {
+      wrapper,
+    });
+    expect(screen.getByText("by Ada Lovelace")).toBeInTheDocument();
+  });
+
+  it("falls back to 'by tutor' when uploaderName is absent", () => {
+    const noName: DocumentMeta[] = [
+      {
+        id: "d3",
+        originalName: "mystery.pdf",
+        size: 1,
+        mime: "application/pdf",
+        caseId: "c1",
+        createdAt: "",
+        uploadedById: "t2",
+        // no uploaderName
+      },
+    ];
     render(
       <CaseDocuments
         caseId="c1"
         ownerId="p1"
-        documents={query({ data: noUploader })}
+        documents={query({ data: noName })}
         canUpload={false}
       />,
       { wrapper },
     );
-    expect(screen.queryByText(/uploaded by parent/i)).not.toBeInTheDocument();
-    expect(screen.getByText("parent-brief.pdf")).toBeInTheDocument();
+    expect(screen.getByText("by tutor")).toBeInTheDocument();
   });
 
   it("renders a Delete action when allowed and calls the API", async () => {
@@ -123,5 +146,22 @@ describe("CaseDocuments", () => {
     expect(progress).toHaveTextContent("a.pdf");
     expect(progress).toHaveTextContent("b.pdf");
     await waitFor(() => expect(screen.getAllByText(/uploaded/i).length).toBeGreaterThanOrEqual(2));
+  });
+
+  it("hides the upload dropzone when canUpload is false", () => {
+    render(
+      <CaseDocuments caseId="c1" ownerId="p1" documents={query({ data: [] })} canUpload={false} />,
+      {
+        wrapper,
+      },
+    );
+    expect(screen.queryByLabelText("Upload document")).not.toBeInTheDocument();
+  });
+
+  it("shows the upload dropzone when canUpload is true", () => {
+    render(<CaseDocuments caseId="c1" ownerId="p1" documents={query({ data: [] })} canUpload />, {
+      wrapper,
+    });
+    expect(screen.getByLabelText("Upload document")).toBeInTheDocument();
   });
 });

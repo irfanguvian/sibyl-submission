@@ -46,8 +46,13 @@ export class DocumentsController {
   @ApiBody({
     schema: { type: "object", properties: { file: { type: "string", format: "binary" } } },
   })
-  @ApiOperation({ summary: "Upload a document to a case" })
+  @ApiOperation({
+    summary: "Upload a document to a case",
+    description:
+      "Upload ACL: OPEN → owner + any invited tutor; MATCHED → owner + matched tutor only; CLOSED → nobody (incl. owner). Non-viewers get 404.",
+  })
   @ApiOkResponse({ type: DocumentResponseDto })
+  @ApiForbiddenResponse({ description: "Closed case, or tutor not permitted to upload" })
   @ApiResponse({ status: 413, description: "File exceeds 10 MB" })
   @ApiResponse({ status: 415, description: "Unsupported file type" })
   async upload(
@@ -67,7 +72,7 @@ export class DocumentsController {
     @Param("caseId") caseId: string,
   ): Promise<DocumentResponseDto[]> {
     const docs = await this.documents.listForCase(user, caseId);
-    return docs.map(DocumentResponseDto.from);
+    return docs.map(DocumentResponseDto.fromWithUploader);
   }
 
   @Delete("cases/:caseId/documents/:id")

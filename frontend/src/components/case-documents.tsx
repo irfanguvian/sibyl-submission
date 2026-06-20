@@ -22,25 +22,6 @@ type UploadEntry = {
   error?: string;
 };
 
-/**
- * Groups a case's documents by uploader. The backend does not currently expose
- * the uploader on a document, so we group by the optional `uploadedById` field
- * when present (parent = case owner; everyone else = tutor). Absent that signal
- * all documents fall under a single heading.
- */
-function groupByUploader(docs: DocumentMeta[], ownerId?: string) {
-  const hasUploader = ownerId !== undefined && docs.some((d) => d.uploadedById != null);
-  if (!hasUploader) {
-    return [{ label: "Documents", docs }] as const;
-  }
-  const parent = docs.filter((d) => d.uploadedById === ownerId);
-  const tutor = docs.filter((d) => d.uploadedById !== ownerId);
-  return [
-    { label: "Uploaded by parent", docs: parent },
-    { label: "Uploaded by tutor(s)", docs: tutor },
-  ].filter((g) => g.docs.length > 0);
-}
-
 export function CaseDocuments({
   caseId,
   ownerId,
@@ -82,8 +63,6 @@ export function CaseDocuments({
     qc.invalidateQueries({ queryKey: ["case", caseId, "documents"] });
   }
 
-  const groups = documents.data ? groupByUploader(documents.data, ownerId) : [];
-
   return (
     <section className="flex flex-col gap-3">
       <h2 className="font-medium text-lg">Documents</h2>
@@ -93,41 +72,41 @@ export function CaseDocuments({
       )}
       {documents.data && documents.data.length === 0 && <EmptyState title="No documents yet" />}
 
-      {groups.map((group) => (
-        <div key={group.label} className="flex flex-col gap-2">
-          {documents.data && documents.data.length > 0 && (
-            <h3 className="text-muted-foreground text-xs uppercase tracking-wide">{group.label}</h3>
-          )}
-          <ul className="flex flex-col gap-2">
-            {group.docs.map((d) => (
-              <li
-                key={d.id}
-                className="flex items-center justify-between gap-3 rounded-md border p-3"
-              >
+      {documents.data && documents.data.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {documents.data.map((d) => (
+            <li
+              key={d.id}
+              className="flex items-center justify-between gap-3 rounded-md border p-3"
+            >
+              <span className="flex flex-col gap-0.5">
                 <span className="text-sm">{d.originalName}</span>
-                <span className="flex items-center gap-3">
-                  <a
-                    className="text-primary text-sm underline-offset-4 hover:underline"
-                    href={casesApi.downloadUrl(d.id)}
-                  >
-                    Download
-                  </a>
-                  {canDeleteDocument?.(d) && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={remove.isPending}
-                      onClick={() => remove.mutate(d.id)}
-                    >
-                      Delete
-                    </Button>
-                  )}
+                <span className="text-muted-foreground text-xs">
+                  {d.uploadedById === ownerId ? "by Parent" : `by ${d.uploaderName ?? "tutor"}`}
                 </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
+              </span>
+              <span className="flex items-center gap-3">
+                <a
+                  className="text-primary text-sm underline-offset-4 hover:underline"
+                  href={casesApi.downloadUrl(d.id)}
+                >
+                  Download
+                </a>
+                {canDeleteDocument?.(d) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={remove.isPending}
+                    onClick={() => remove.mutate(d.id)}
+                  >
+                    Delete
+                  </Button>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {remove.isError && (
         <p role="alert" className="text-destructive text-sm">

@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import { type Case, Role } from "@prisma/client";
+import { type Case, CaseStatus, Role } from "@prisma/client";
 import type { AuthenticatedUser } from "../auth/auth.types";
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -40,6 +40,37 @@ export class CaseAccessService {
       throw new NotFoundException("Case not found");
     }
     return found;
+  }
+
+  /**
+   * Return the case if the user may upload documents to it, else 404/403.
+   *
+   * Upload ACL matrix (enforced server-side):
+   *   - CLOSED  → nobody may upload (including the owner) → 403.
+   *   - PARENT owner → may upload while OPEN or MATCHED.
+   *   - TUTOR on OPEN → may upload (any invited tutor).
+   *   - TUTOR on MATCHED → only the matched tutor may upload, else 403.
+   *
+   * Visibility (404 for non-viewers) is preserved by delegating to
+   * {@link getViewableCase} first.
+   */
+  async getUploadableCase(user: AuthenticatedUser, caseId: string): Promise<Case> {
+    const c = await this.getViewableCase(user, caseId);
+
+    if (c.status === CaseStatus.CLOSED) {
+      throw new ForbiddenException("This case is closed and no longer accepts uploads");
+    }
+
+    if (user.role === Role.PARENT) {
+      // Owner (getViewableCase already proved ownership for PARENT).
+      return c;
+    }
+
+    // TUTOR — invited (proved by getViewableCase).
+    if (c.status === CaseStatus.MATCHED && c.matchedTutorId !== user.id) {
+      throw new ForbiddenException("Only the matched tutor may upload to this case");
+    }
+    return c;
   }
 
   /** Return the case if the user may edit it (owner only), else 404/403. */

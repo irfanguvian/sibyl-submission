@@ -8,7 +8,8 @@ import {
 import { Role } from "@prisma/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthenticatedUser } from "../auth/auth.types";
-import { DocumentsService } from "./documents.service";
+import { type DocumentWithUploader, DocumentsService } from "./documents.service";
+import { DocumentResponseDto } from "./dto/document-response.dto";
 
 const user: AuthenticatedUser = { id: "u1", role: Role.PARENT, jti: "j" };
 const PDF = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]);
@@ -34,7 +35,10 @@ function makeDeps() {
       tutorProfile: { findUnique: vi.fn() },
     },
     storage: { put: vi.fn().mockResolvedValue(undefined), presignedGetUrl: vi.fn() },
-    access: { getViewableCase: vi.fn().mockResolvedValue({ id: "case-1" }) },
+    access: {
+      getViewableCase: vi.fn().mockResolvedValue({ id: "case-1" }),
+      getUploadableCase: vi.fn().mockResolvedValue({ id: "case-1" }),
+    },
     config: { get: vi.fn().mockReturnValue(10 * 1024 * 1024) },
   };
 }
@@ -72,8 +76,15 @@ describe("DocumentsService", () => {
       expect(createArg.storedKey).not.toContain("evil");
     });
 
-    it("404s (existence-safe) when the caller cannot view the case", async () => {
-      d.access.getViewableCase.mockRejectedValue(new NotFoundException());
+    it("calls getUploadableCase (not getViewableCase) for authorization", async () => {
+      d.prisma.document.create.mockResolvedValue({ id: "doc-1" });
+      await service.uploadToCase(user, "case-1", file());
+      expect(d.access.getUploadableCase).toHaveBeenCalledWith(user, "case-1");
+      expect(d.access.getViewableCase).not.toHaveBeenCalled();
+    });
+
+    it("404s / 403s (existence-safe) when the caller cannot upload to the case", async () => {
+      d.access.getUploadableCase.mockRejectedValue(new NotFoundException());
       await expect(service.uploadToCase(user, "case-x", file())).rejects.toBeInstanceOf(
         NotFoundException,
       );
@@ -152,6 +163,15 @@ describe("DocumentsService", () => {
       await service.listForCase(user, "case-1");
       const whereArg = d.prisma.document.findMany.mock.calls[0][0].where;
       expect(whereArg).toMatchObject({ caseId: "case-1", deletedAt: null });
+    });
+
+    it("includes uploadedBy with tutorProfile relation", async () => {
+      d.prisma.document.findMany.mockResolvedValue([]);
+      await service.listForCase(user, "case-1");
+      const includeArg = d.prisma.document.findMany.mock.calls[0][0].include;
+      expect(includeArg).toMatchObject({
+        uploadedBy: { include: { tutorProfile: true } },
+      });
     });
   });
 
@@ -260,6 +280,57 @@ describe("DocumentsService", () => {
       await expect(service.deleteOwnProfileDocument(user, "doc-1")).rejects.toBeInstanceOf(
         NotFoundException,
       );
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DocumentResponseDto.fromWithUploader — uploaderName resolution
+// ---------------------------------------------------------------------------
+
+function makeDocWithUploader(
+  overrides: Partial<{ displayName: string | null; email: string }> = {},
+): DocumentWithUploader {
+  const { displayName = null, email = "tutor@example.com" } = overrides;
+  return {
+    id: "doc-1",
+    originalName: "test.pdf",
+    size: 100,
+    mime: "application/pdf",
+    caseId: "case-1",
+    uploadedById: "u1",
+    createdAt: new Date("2024-01-01T00:00:00Z"),
+    uploadedBy: {
+      email,
+      tutorProfile: displayName !== null ? { displayName } : null,
+    },
+  } as unknown as DocumentWithUploader;
+}
+
+describe("DocumentResponseDto.fromWithUploader", () => {
+  it("uses tutorProfile.displayName when present", () => {
+    const dto = DocumentResponseDto.fromWithUploader(
+      makeDocWithUploader({ displayName: "Alice Tutor" }),
+    );
+    expect(dto.uploaderName).toBe("Alice Tutor");
+  });
+
+  it("falls back to uploader email when tutorProfile is null", () => {
+    const dto = DocumentResponseDto.fromWithUploader(
+      makeDocWithUploader({ displayName: null, email: "noname@example.com" }),
+    );
+    expect(dto.uploaderName).toBe("noname@example.com");
+  });
+
+  it("maps id, originalName, mime, size, caseId, uploadedById correctly", () => {
+    const dto = DocumentResponseDto.fromWithUploader(makeDocWithUploader({ displayName: "Bob" }));
+    expect(dto).toMatchObject({
+      id: "doc-1",
+      originalName: "test.pdf",
+      size: 100,
+      mime: "application/pdf",
+      caseId: "case-1",
+      uploadedById: "u1",
     });
   });
 });
