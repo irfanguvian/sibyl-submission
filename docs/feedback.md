@@ -1,0 +1,35 @@
+Feedback parent on cases menu:
+* budget can fill with zero ( prevent it)
+  > **RESOLVED** — `@Min(1)` added to `budgetPerHour` in `CreateCaseDto` and `UpdateCaseDto`. Budget of 0 now returns 400. Seed includes one case with `budgetPerHour=1` as an edge-case demo.
+* document is upload only, cannot be erase or updated. mitigate flow where it can be erase and upload again
+  > **RESOLVED** — Documents are now soft-deleted (`Document.deletedAt`). `DELETE /cases/:caseId/documents/:id` (uploader-only) sets `deletedAt`; soft-deleted docs are excluded from list responses and return 404 on download. Users can upload a replacement after deleting. Profile docs follow the same pattern. See D13.
+* document can upload many or drop. state now can only single upload
+  > **RESOLVED** — `file-dropzone` gained a `multi` mode. The case-documents component accepts multiple files via drag-and-drop or multi-select and loops the existing single-upload endpoint once per file, reporting per-file progress and inline errors.
+* invite tutor is using name instead of id, because in UI there is no ID. parent dont know the IDs. also is better to have a recomendation one base on qualification and experience ( this is llm, i think make mocks so it mocking ai call to give recomendation of tutor with same subject and qualification)
+  > **RESOLVED** — Invite panel now has a name-search input; results show `displayName + qualifications`. The selected tutor's ID is sent transparently. AI-mock recommendation panel (`GET /cases/:id/recommendations`) added: deterministic keyword-overlap scoring, no external LLM, labelled "mock". See D12.
+* while searching name in invite tutor, search by name. in entry display the name with qualifications
+  > **RESOLVED** — Directory search results in the invite panel display `displayName` and `qualifications` for each tutor entry.
+* on inviting tutor, we dont know that tutor is already invited or not. should have a feature listed that tutor invited into the cases. so invoking can be in list entry not in searching button
+  > **RESOLVED** — `GET /cases/:id/invites` (owner-only) returns the list of invited tutors with `{tutorId, displayName, qualifications}`. The invite panel on case detail shows this list with per-row Accept and Revoke buttons. Invite via the search results still works; duplicate invite returns 409 (already-invited guard).
+* there is no action button, where parent accept the tutor. for now each case only for one tutor.
+  > **RESOLVED** — `POST /cases/:id/accept { tutorId }` (owner-only) sets `status=MATCHED` and `matchedTutorId`. One tutor per case enforced: accepting a second different tutor returns 409; re-accepting the same tutor is idempotent. A matched-tutor badge appears on the case detail. See D10.
+* the flow should be : new cases -> parent search tutors -> invite tutors -> tutors see new invitation ( status, filterable by tutors, seperate menu or easy filter to see the invitation (add notification that tutors is invited.), tutors accept the invitation. now is match tutor can upload document into the cases.)
+  > **PARTIALLY RESOLVED** — The parent-side flow (create case → search/invite → accept → MATCHED) is fully implemented. Tutors see their invitations via the "Invitations" nav (tutor's Cases view, filterable). Notification badge is not implemented (out of scope for this phase). Tutor-accept is **REJECTED** — the invite-only model is kept per requirement §C: parents invite and accept; tutors do not apply or accept. Once MATCHED the tutor retains case document access.
+* current state. there is no brief in cases, just document. i think its make tutors is confused. add new data description to sure tutors know what they doing. and tutor can see any document in cases. seperate entry list both from tutor and parent upload (cases).
+  > **RESOLVED** — `Case.description String?` added (D14). Surfaced in the create/edit form and the case detail "Brief" section. Document list is now grouped by uploader (parent-uploaded / tutor-uploaded sections) in the `case-documents` component.
+* i think using dashboard like is not good approach, because parent just want to upload the cases, upload document cases, and invite the tutors. make parent only focus in their domain instead of make a dashboard like ( mitigate first, is this move out from requirement). also parent also can see tutors uploaded document on profile ( currently only qualification and experience.)
+  > **RESOLVED** — Parent nav refocused: "Dashboard" link removed; cases list is the landing destination after login. Tutor profile detail page now surfaces profile documents alongside qualifications and experiences.
+* i think the flow will kind like linkedln, where parent ( HR ) will upload the job (cases) and tutors can applied them, or invited by the parents.
+  > **REJECTED** — Tutor self-apply (LinkedIn model) is explicitly out of scope per requirement §C which specifies the invite-only model. Parents invite; tutors do not apply. Keeping this boundary also simplifies the ACL model significantly.
+* add AI features ( mocked ), when ai give recomendation for tutors with exact match from all tutors and ai for searching on all applied tutors.
+  > **RESOLVED** — `GET /cases/:id/recommendations` (owner-only) returns a ranked list of tutors scored by keyword overlap between the case subject/description and tutor qualifications. Deterministic, no external LLM. Labelled "AI-suggested (mock)" in the UI and Swagger. See D12.
+
+Feedback on tutors:
+* Tutors document cannot be managed, only upload. make it adjustable so it can delete ( soft delete) and upload the new one.
+  > **RESOLVED** — Profile-doc delete (`DELETE /tutor-profiles/me/documents/:docId`) converted to soft-delete (sets `deletedAt`). Excluded from list responses. Tutor can upload a replacement after deleting. See D13.
+* make tutors can appled the cases, the result will only on parent side where there will pick you as a match cases
+  > **REJECTED** — Tutor self-apply is out of scope (invite-only model kept per requirement §C). Parent-side accept action is implemented instead (see D10).
+* tutors should know where there status be. make a menu where there will be cases not applied, and applied cases that they can filter. status : applied -> on review ( selected people ) -> picked -> cases done (add balance into the users, mitigate first is on requirement or its moving out into requirement)
+  > **PARTIALLY RESOLVED / REJECTED** — The extended status lifecycle (applied → on review → picked → done) and the balance feature are **REJECTED** as out of scope. Status stays `OPEN | MATCHED | CLOSED` per requirement §B. Tutors can see their invited cases via the "Invitations" nav (filterable). The MATCHED state is now visible on the case detail via the matched-tutor badge.
+* add welcoming page, where users login and signup.
+  > **RESOLVED** — `/` is now a public welcome/landing page with CTAs for login and signup. `/signup` page added with RHF+zod form (role select, TUTOR displayName). `POST /auth/register` backend endpoint added (public, rate-limited, bcrypt). See D11.

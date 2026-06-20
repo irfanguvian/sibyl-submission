@@ -2,6 +2,20 @@
 
 A platform where parents post tutoring cases and tutors get invited to apply — connecting families with qualified educators efficiently.
 
+## Submission / Deliverables
+
+| Deliverable | Link |
+|---|---|
+| Repository | https://github.com/irfanguvian/sibyl-submission |
+| Deployment (live app) | https://sibyl-submission-production.up.railway.app/ |
+| Swagger / OpenAPI (deployed) | https://sibyl-submission-production.up.railway.app/api/proxy/docs |
+| Swagger / OpenAPI (local) | http://localhost:3001/docs |
+| Demo credentials | See [Demo Credentials](#demo-credentials) — all accounts use `password123` |
+| Video walkthrough — Part 1 | https://www.loom.com/share/f2b6383e5610473b95a7fc51ab99062d |
+| Video walkthrough — Part 2 | https://www.loom.com/share/65e752f0586e4025934a70720e777b7f |
+
+> On the single-container deployment the NestJS backend runs internally; the public domain serves the Next.js frontend, which proxies the API (and Swagger) under `/api/proxy/*`. The deployed Swagger UI is therefore at `/api/proxy/docs` (raw spec: `/api/proxy/docs-json`). Running locally exposes Swagger directly at `http://localhost:3001/docs`.
+
 ## Architecture
 
 Two **independent** services. There is no monorepo, no workspace, and no shared
@@ -192,9 +206,19 @@ Documents (case docs and tutor profile docs) are **soft-deleted**: `DELETE` sets
 - Return **404** on download attempts.
 - Preserve the DB row for audit purposes (S3 object cleanup is a background job not implemented in this phase).
 
-## TODO: Deployment URLs
+## Deployment
 
-> **TODO:** Add staging and production URLs once deployed.
+The app is deployed as a **single Railway container** (NestJS backend on an internal
+port, Next.js frontend on the public port — see [`start.sh`](./start.sh) and
+[`docs/railway-deploy.md`](./docs/railway-deploy.md)).
+
+| Environment | URL |
+|---|---|
+| Production (app) | https://sibyl-submission-production.up.railway.app/ |
+| Production (Swagger UI) | https://sibyl-submission-production.up.railway.app/api/proxy/docs |
+| Production (OpenAPI JSON) | https://sibyl-submission-production.up.railway.app/api/proxy/docs-json |
+
+The deployment is functional end-to-end: login → browse cases → view case → documents.
 
 ---
 
@@ -213,6 +237,10 @@ You can also register new accounts via the `/signup` page or `POST /auth/registe
 
 ---
 
-## TODO: Demo Video
+## Demo Video
 
-> **TODO:** Add a link to the walkthrough video once recorded.
+A walkthrough of the deployed app and a look under the hood (auth, server-side
+access control, document upload/storage/download), split into two parts:
+
+- **Part 1:** https://www.loom.com/share/f2b6383e5610473b95a7fc51ab99062d
+- **Part 2:** https://www.loom.com/share/65e752f0586e4025934a70720e777b7f
